@@ -19,6 +19,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
       UV_LINK_MODE: copy
+      HYPOTHESIS_PROFILE: ci   # more random examples than a quick local run
     steps:
       - uses: actions/checkout@v7
 

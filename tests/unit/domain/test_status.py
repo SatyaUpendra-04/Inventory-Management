@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from ims.domain.assets.status import (
@@ -55,6 +55,13 @@ class TestTransitions:
     def test_grounded_equipment_cannot_be_deployed(self) -> None:
         with pytest.raises(InvalidTransition, match="cannot be deployed"):
             apply_change(status(S.UNSERVICEABLE), change(c=C.DEPLOYED))
+
+    def test_return_to_service_and_deploy_cannot_be_combined(self) -> None:
+        """Found by the property test on CI: un-grounding and deploying in one step."""
+        with pytest.raises(InvalidTransition, match="cannot be deployed"):
+            apply_change(status(S.UNSERVICEABLE), change(s=S.SERVICEABLE, c=C.DEPLOYED))
+        with pytest.raises(InvalidTransition, match="separate steps"):
+            apply_change(status(), change(s=S.LIMITED, c=C.DEPLOYED))
 
     def test_limited_equipment_can_be_deployed(self) -> None:
         assert apply_change(status(S.LIMITED), change(c=C.DEPLOYED)).custody is C.DEPLOYED
@@ -159,7 +166,6 @@ changes = (
 )
 
 
-@settings(max_examples=300)
 @given(st.lists(st.builds(lambda: None) | changes, max_size=30))
 def test_random_change_sequences_never_break_the_rules(requests: list[StatusChange | None]) -> None:
     """Whatever sequence of requests users make, accepted states always obey the rules."""

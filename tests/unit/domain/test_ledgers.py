@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from ims.domain.assets.catalogue import DEFAULT_CATALOGUE, Meter
@@ -126,7 +126,6 @@ class TestUsageLedger:
             check_new_entry([usage(1, "1")], adjust, DRONE)
 
 
-@settings(max_examples=200)
 @given(st.lists(st.tuples(st.decimals("0.01", "24", places=2), st.booleans()), max_size=25))
 def test_usage_totals_equal_unreversed_entries(items: list[tuple[Decimal, bool]]) -> None:
     """Reversing any subset of entries leaves exactly the un-reversed hours."""
@@ -231,7 +230,6 @@ class TestStockLedger:
 kinds = st.sampled_from(list(MovementKind))
 
 
-@settings(max_examples=300)
 @given(st.lists(st.tuples(kinds, st.integers(-30, 30)), max_size=40))
 def test_accepted_movements_never_make_balances_negative(
     requests: list[tuple[MovementKind, int]],

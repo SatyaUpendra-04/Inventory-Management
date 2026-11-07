@@ -132,8 +132,12 @@ def apply_change(current: AssetStatus, change: StatusChange) -> AssetStatus:
         raise InvalidTransition("The asset already has this status.")
 
     # Rules that link the two dimensions.
-    if new_c is _C.DEPLOYED and current.custody is not _C.DEPLOYED and new_s not in USABLE:
-        raise InvalidTransition("Grounded or retired equipment cannot be deployed.")
+    if new_c is _C.DEPLOYED and current.custody is not _C.DEPLOYED:
+        if current.serviceability not in USABLE or new_s not in USABLE:
+            raise InvalidTransition("Grounded or retired equipment cannot be deployed.")
+        if s_moves:
+            # Return to service is its own certified step; never combined with deployment.
+            raise InvalidTransition("Change serviceability and deploy as separate steps.")
     if new_s is _S.RETIRED and new_c not in {_C.IN_STORE, _C.IN_MAINTENANCE, _C.DISPOSED}:
         raise InvalidTransition(
             "Equipment must be back in store or in maintenance before it is retired."
