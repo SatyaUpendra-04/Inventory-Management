@@ -118,7 +118,7 @@ Batteries are their own lifecycle module, separate from the drone or receiver th
 - Periodic stock count with variance report.
 
 ### 4.6 Compliance (India)
-Tracked as documents with expiry dates and alerts. **These must be verified against the current DGCA Drone Rules before Sprint 3:**
+Tracked as documents with expiry dates and alerts. **These must be verified against the current DGCA Drone Rules before Sprint 4 (asset registry & compliance):**
 - Remote Pilot Certificate (RPC) for every pilot, mandatory, with expiry
 - Drone Unique Identification Number (UIN) and type certificate reference
 - Third-party insurance per drone
@@ -148,9 +148,49 @@ Tracked as documents with expiry dates and alerts. **These must be verified agai
 
 ---
 
-## 7. Desktop application
+## 7. Desktop application & design system
 
-- **Pattern:** views + view-models (MVVM-style) using Qt's model/view classes for tables, so large lists stay fast.
+The UI is a first-class requirement: top-notch, theme-adjustable, with macOS-inspired motion and colour-theory-accurate proportions. "Inspired" means the feel (calm surfaces, depth, fluid spring motion), never Apple's assets, fonts, icons or branding. See ADR-0004.
+
+### 7.1 UI technology
+- **Qt Quick (QML)** for all screens, driven by Python view-models (`QObject` properties, signals and slots). Qt Quick renders on the GPU and has declarative animations, which Qt Widgets cannot match for fluid motion.
+- Tables and lists use Python `QAbstractItemModel` subclasses shown in Qt Quick `TableView`/`ListView`, so thousands of rows stay smooth.
+- The Sprint 0 Qt Widgets window is replaced by a Qt Quick window in Sprint 2 (design system).
+
+### 7.2 Design tokens
+Every visual value comes from one token set; no colour, size or duration is hard-coded in a screen.
+
+| Token group | Definition |
+|---|---|
+| **Colour** | Tonal palettes generated in the **OKLCH** colour space, so every step has an even, perceptually accurate change in lightness. Each palette has 12 steps (background → solid → text). |
+| **Proportion** | **60-30-10:** about 60% neutral surfaces, 30% secondary surfaces and content, 10% accent (primary actions, selection, focus). Accent never fills large areas. |
+| **Semantic status** | Serviceable (green), limitation / due soon (amber), grounded / overdue (red), information (blue), retired (neutral). Same meaning in every theme, and **never colour alone**: always with an icon and a label, for colour-blind users. |
+| **Typography** | Inter (open licence, bundled) with Segoe UI Variable as fallback; modular type scale (ratio 1.2); tabular figures for numbers in tables. |
+| **Spacing & shape** | 4-point grid (4, 8, 12, 16, 24, 32, 48); corner radii 6 / 10 / 14; soft layered shadows for elevation. |
+| **Motion** | Durations 120 ms (micro), 220 ms (standard), 350 ms (page/sheet); spring-style easing (fast start, gentle settle) instead of linear movement. |
+
+### 7.3 Themes
+- **Light, Dark and System** (follows the Windows setting live), plus a **user-chosen accent colour**: the full accent palette is generated in OKLCH from that one colour and checked for contrast before it is accepted.
+- **High-contrast** variant for bright outdoor/site use.
+- Theme changes cross-fade instead of flashing; the choice is saved per user.
+
+### 7.4 Motion (macOS-inspired)
+- **Sheets:** dialogs slide down from the window's title area over a dimmed background, like macOS sheets, and slide back on close.
+- **Page transitions:** short slide + fade between sections; the sidebar selection highlight glides to the new item.
+- **Micro-interactions:** hover lift, press scale (≈ 0.97), smooth focus rings, toggle and segmented-control slides.
+- **Lists:** inserted and removed rows animate height and opacity; loading shows a skeleton shimmer instead of a spinner where possible.
+- **Toasts** slide in from the top-right and stack.
+- **Reduced motion:** when Windows "Animation effects" is off, movement becomes simple fades with no travel.
+- Translucent, blurred sidebar ("vibrancy") is emulated subtly where the GPU allows, with a solid fallback.
+
+### 7.5 Accessibility & quality
+- **WCAG 2.2 AA contrast:** 4.5:1 for text, 3:1 for icons and control borders, **checked by automated tests for every theme and accent**.
+- Full keyboard navigation with visible focus; text scaling from 100% to 150% without broken layouts; screen-reader names on every control.
+- **Visual regression tests:** key components and screens are rendered off-screen in each theme and compared to approved screenshots in CI.
+- Icons: one consistent open-licence SVG set (Lucide), tinted by theme tokens.
+
+### 7.6 Application behaviour
+- **Pattern:** QML views + Python view-models (MVVM); view-models hold state and call the application layer, never storage.
 - **No frozen screens:** all storage and network calls run on background workers; the UI shows progress and errors.
 - **Offline queue:** commands wait in a local queue with their IDs and are replayed when online; duplicates are ignored by ID.
 - **Errors:** user-friendly messages; full details go to a rotating log file with a "copy diagnostics" button.
@@ -163,14 +203,15 @@ Tracked as documents with expiry dates and alerts. **These must be verified agai
 | Concern | Choice |
 |---|---|
 | Language | Python 3.13 (pinned) |
-| UI | PySide6 (Qt 6) |
+| UI | PySide6 (Qt 6) with **Qt Quick / QML** views and Python view-models |
+| Design system | Design tokens, OKLCH palette generator, Inter font, Lucide icons |
 | Domain models & validation | Pydantic v2 |
 | Local adapter | SQLAlchemy 2 + Alembic migrations on SQLite |
 | Plan A adapter | Microsoft Graph (`msal`, `httpx`) |
 | Plan B adapter | Supabase (`supabase-py` / `httpx`), Row Level Security |
 | Environment & packaging | `uv`, `pyproject.toml`, lock file |
 | Code quality | `ruff` (lint + format), `mypy --strict` on the domain, import-linter |
-| Tests | `pytest`, `pytest-qt`, `hypothesis` (property tests for ledgers and state machines), contract tests per adapter |
+| Tests | `pytest`, `pytest-qt`, `hypothesis` (property tests for ledgers and state machines), contract tests per adapter, contrast tests per theme, visual regression screenshots |
 | CI | GitHub Actions: lint, type-check, tests, coverage report, `pip-audit` |
 | Installer | PyInstaller + Inno Setup |
 | Logging | `structlog`, JSON lines, rotating files |
@@ -183,6 +224,7 @@ Tracked as documents with expiry dates and alerts. **These must be verified agai
 - Domain test coverage ≥ 90%; overall ≥ 75%
 - Contract tests pass for every implemented adapter
 - No layer-boundary violations
+- Contrast checks pass for every theme; visual regression screenshots match or are re-approved
 - Database changes go through a migration, never by hand
 - Every user-visible change has a changelog entry; releases use semantic versioning
 
@@ -196,7 +238,7 @@ src/ims/
   application/     commands, queries, permissions, offline queue
   ports/           repository.py, auth.py, files.py, clock.py
   adapters/        sqlite/ sharepoint/ supabase/
-  ui/              views/ viewmodels/ widgets/ theme/
+  ui/              qml/ (screens, components) viewmodels/ models/ theme/ (tokens, palette, motion) assets/ (fonts, icons)
   main.py
 tests/
   unit/  contract/  integration/  ui/

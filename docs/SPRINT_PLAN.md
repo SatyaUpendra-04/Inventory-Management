@@ -2,7 +2,7 @@
 
 **Product:** Desktop inventory, airworthiness and operations system for drones, batteries, payloads and survey (GNSS/DGPS) equipment, with pilots, surveyors and mining survey projects.
 **Status:** Sprint 0 · Plan dated 2026-11-08
-**Cadence:** 2-week sprints (Sprint 0 is 1 week) · ~19 weeks, plus a 2-week buffer
+**Cadence:** 2-week sprints (Sprint 0 is 1 week) · ~21 weeks, plus a 2-week buffer
 **Architecture:** see [ARCHITECTURE.md](ARCHITECTURE.md). This is a **new, industry-grade build**. V1.2.3 is used only as a reference for business rules; its code structure is not carried over.
 
 ---
@@ -72,16 +72,28 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** all domain rules are unit-tested (≥ 90% coverage) and the SQLite adapter passes the contract tests.
 
-### Sprint 2 — App shell, accounts & sites
+### Sprint 2 — Design system & app shell
+- Switch the UI to **Qt Quick (QML)** with Python view-models (ADR-0004); replace the Sprint 0 window
+- **Design tokens:** OKLCH tonal palettes, 60-30-10 proportions, semantic status colours, type scale (Inter), 4-point spacing, radii, shadows, motion durations and easing
+- **Themes:** Light, Dark, System (follows Windows live), high-contrast, user-chosen accent colour with automatic contrast check; cross-fade on theme change
+- **Motion:** sheets, page transitions, gliding sidebar selection, hover/press micro-interactions, animated list changes, skeleton loading, toasts; reduced-motion support
+- **Component library:** buttons, text fields, selects, date picker, toggles, segmented controls, checkboxes, cards, badges/status pills, data table, sidebar, toolbar, sheets, popovers, toasts, empty states
+- **App shell:** sidebar navigation, toolbar, settings page with theme and accent picker, login screen design
+- Component gallery page (for review and screenshot tests)
+- Quality: WCAG AA contrast tests for every theme and accent; visual regression screenshots in CI; keyboard navigation and focus rings
+
+**Done when:** the shell and every component work in all themes, contrast tests pass, and you have approved the look and motion in a review session.
+
+### Sprint 3 — Accounts, users & sites
 - Login via `AuthProvider` (local accounts for now)
 - Account management: Admin-created users, temporary password with forced change, admin reset, lockout, deactivation
-- Main window, navigation and role-based menus; background workers so screens never freeze
+- Role-based navigation; every action runs on background workers so screens never freeze
 - User profiles: picture, contact, employee ID, pilot certificate number and expiry (with file upload)
 - Sites / mine areas
 
 **Done when:** an Admin can onboard Pilots and Surveyors end to end.
 
-### Sprint 3 — Asset registry, configuration & compliance
+### Sprint 4 — Asset registry, configuration & compliance
 - Asset catalogue, filters, add/edit/retire, asset detail with full history
 - **Configuration:** install/remove components on drones (motors, propellers, landing gear, Helix GPS antenna, camera, logger), with time-in-service per component
 - Kit templates and kits: "Drone kit" and "DGPS set" (base + rover receivers, controller, tripod, tribrach, bipod, batteries, chargers)
@@ -92,7 +104,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** the whole fleet is registered with components, documents and expiries.
 
-### Sprint 4 — Projects, deployments & field logs
+### Sprint 5 — Projects, deployments & field logs
 - Projects: code, site, dates, chief pilot, surveyor, status
 - **Pre-project deployment:** choose kit/assets and crew; blocked automatically if any asset is unserviceable, overdue for maintenance, out of compliance, or the pilot's certificate has expired
 - **Sorties:** per-flight log (drone, battery, pilot, date, duration, cycles, landings, site)
@@ -103,7 +115,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** a full project cycle works and every hour and cycle lands in the usage ledger.
 
-### Sprint 5 — Reservations
+### Sprint 6 — Reservations
 - Reserve assets/kits for a date range against a project
 - Conflict detection: overlaps with reservations, deployments, planned maintenance and expiring documents
 - Admin approval / rejection
@@ -114,7 +126,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** double-booking is impossible, reservations flow into deployments, and GCP stock never runs out unnoticed.
 
-### Sprint 6 — Airworthiness & maintenance
+### Sprint 7 — Airworthiness & maintenance
 - Maintenance programme per asset model: tasks due by hours, cycles or calendar, whichever comes first, with tolerances
 - Due and overdue list; overdue tasks ground the asset automatically
 - **Defects:** report → assess (ground immediately or defer with a limitation) → rectify
@@ -123,7 +135,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** no asset can be deployed with an overdue task or open grounding defect.
 
-### Sprint 7 — Battery lifecycle & survey equipment
+### Sprint 8 — Battery lifecycle & survey equipment
 - Separate lifecycle for every battery: drone flight batteries, DGPS receiver batteries, controller batteries
 - Battery cycle ledger, health %, optional internal resistance / cell imbalance / swelling checks; compatible chargers per battery family
 - Storage-charge reminders for idle batteries; retirement at cycle or health limits
@@ -133,7 +145,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** every battery and survey instrument has a complete, accurate lifecycle record.
 
-### Sprint 8 — Stats, reports & forecasting
+### Sprint 9 — Stats, reports & forecasting
 - Pilot stats: hours by month/fiscal year, sorties, drone models, certificate status
 - Surveyor stats: projects, area surveyed, fix rates
 - Project stats: equipment used, hours, area, images, quality, GCP banners consumed
@@ -144,8 +156,8 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** management reports come from the app, not spreadsheets.
 
-### Sprint 9 — Backend integration & release (final)
-The plan is chosen by IT's answer before Sprint 9 starts.
+### Sprint 10 — Backend integration & release (final)
+The plan is chosen by IT's answer before Sprint 10 starts.
 
 **Plan A — SharePoint**
 - IMS SharePoint site, groups (IMS Admins / IMS Members) and list provisioning script with indexes
@@ -165,12 +177,12 @@ The plan is chosen by IT's answer before Sprint 9 starts.
 
 **Done when:** all users run the installed app against the chosen backend, and a restore from backup has been tested.
 
-> **Risk:** Sprint 9 carries the most unknowns (IT permissions, Graph throttling, list limits). The 2-week buffer is reserved for it.
+> **Risk:** Sprint 10 carries the most unknowns (IT permissions, Graph throttling, list limits). The 2-week buffer is reserved for it.
 > **Mitigation (recommended):** once IT answers, spend half a day reading and writing one record against the chosen backend. That confirms access early without changing the build order.
 
 ---
 
-## 4. Backend options for Sprint 9
+## 4. Backend options for Sprint 10
 
 | | **Plan A — SharePoint** | **Plan B — Supabase Pro** |
 |---|---|---|
@@ -204,14 +216,15 @@ The plan is chosen by IT's answer before Sprint 9 starts.
 
 | Sprint | Weeks | Focus |
 |---|---|---|
-| 0 | 1 | Foundation |
+| 0 | 1 | Foundation ✅ |
 | 1 | 2 | Domain core & storage contract |
-| 2 | 2 | App shell, accounts, sites |
-| 3 | 2 | Asset registry, configuration, compliance |
-| 4 | 2 | Projects, deployments, field logs |
-| 5 | 2 | Reservations |
-| 6 | 2 | Airworthiness & maintenance |
-| 7 | 2 | Battery lifecycle & survey equipment |
-| 8 | 2 | Stats, reports, forecasting |
-| 9 | 2 (+2 buffer) | Backend integration & release |
-| **Total** | **~19–21 weeks** | |
+| 2 | 2 | Design system & app shell |
+| 3 | 2 | Accounts, users, sites |
+| 4 | 2 | Asset registry, configuration, compliance |
+| 5 | 2 | Projects, deployments, field logs |
+| 6 | 2 | Reservations |
+| 7 | 2 | Airworthiness & maintenance |
+| 8 | 2 | Battery lifecycle & survey equipment |
+| 9 | 2 | Stats, reports, forecasting |
+| 10 | 2 (+2 buffer) | Backend integration & release |
+| **Total** | **~21–23 weeks** | |
