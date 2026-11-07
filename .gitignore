@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local data — never commit databases or backups
+*.db
+*.db-wal
+*.db-shm
+*.db.bak-*
+*.sqlite
+backups/
+
+# Secrets / environment
+.env
+.env.*
+*.pem
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
