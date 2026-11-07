@@ -1,9 +1,9 @@
 # Inventory Management System — Sprint Plan
 
-**Product:** Desktop inventory & operations system for drone and survey (DGPS) equipment, pilots, surveyors and mining survey projects.
+**Product:** Desktop inventory, airworthiness and operations system for drones, batteries, payloads and survey (GNSS/DGPS) equipment, with pilots, surveyors and mining survey projects.
 **Status:** Sprint 0 · Plan dated 2026-11-08
-**Cadence:** 2-week sprints (Sprint 0 is 1 week) · ~19 weeks total
-**Baseline:** V1.2.3 (PySide6 + SQLite) — its service layer, audit ledger, migrations and tests are ported, not rewritten.
+**Cadence:** 2-week sprints (Sprint 0 is 1 week) · ~19 weeks, plus a 2-week buffer
+**Architecture:** see [ARCHITECTURE.md](ARCHITECTURE.md). This is a **new, industry-grade build**. V1.2.3 is used only as a reference for business rules; its code structure is not carried over.
 
 ---
 
@@ -11,147 +11,166 @@
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Client | PySide6 desktop app (Windows first) | Reuses V1.2.3 UI and logic; no hosting cost |
+| Client | PySide6 desktop app (Windows first) | No hosting cost; works on site laptops |
+| Architecture | Hexagonal (ports & adapters), domain modules, append-only ledgers, state machines | Auditable history, replaceable backend, testable rules |
 | Backend — **Plan A** | SharePoint Lists via Microsoft Graph, with company Microsoft sign-in (MSAL) | Already licensed; data stays inside the company tenant; no password storage of our own |
 | Backend — **Plan B** (if IT declines Plan A) | Supabase Pro (PostgreSQL, Mumbai region), with **app-specific accounts** (Supabase Auth) | No IT approval needed; about $25/month; permissions enforced on the server (Row Level Security) |
 | Development & testing | Local SQLite + local app accounts; Supabase **free** tier with dummy data only | Builds every feature without waiting on IT; never puts real staff data on a free account |
 | Sync model | Logging **before** and **after** a project; no live sync | Matches field workflow; keeps the app simple |
-| Build order | Full app on a **local SQLite adapter first**, SharePoint integration **last** | Features can be built and tested without waiting on IT |
-| Backup | Admin desktop keeps local SQLite snapshots of the SharePoint data | Read access and restore if SharePoint is unavailable |
+| Build order | Full app on the local adapter first, backend integration **last** | Features can be built and tested without waiting on IT |
+| Backup | Admin desktop keeps local SQLite snapshots of the shared data | Read access and restore if the backend is unavailable |
 | Never | Put a `.db` file inside a SharePoint/OneDrive synced folder | Sync corrupts SQLite (`-wal`/`-shm` files sync separately) |
+| Never | Combine app-specific accounts with SharePoint | Would need one shared secret in every copy of the app, and still needs IT consent |
 
 ### Building for either backend before integrating it
-Integration is the last sprint and the backend is not yet final, so from Sprint 1 the local adapter **must behave like the stricter of the two (SharePoint)**, or the final sprint becomes a rewrite:
+The local adapter **must behave like the stricter backend (SharePoint)** from Sprint 1, or the final sprint becomes a rewrite:
 
-- Services talk only to a `Repository` interface — **no SQL in services or UI**.
-- Login goes through an `AuthProvider` interface with three implementations: local (development), Microsoft/MSAL (Plan A) and Supabase Auth (Plan B). Screens never know which one is active.
-- Every record carries an `etag`/version; updates fail with `ConflictError` if the record changed since it was read (mirrors SharePoint optimistic concurrency).
-- **No cross-record transactions** are assumed. Multi-item operations (e.g. a 5-item checkout) are written as a sequence with compensation (undo on failure).
-- Lookups are by indexed fields only (SharePoint slows past ~5,000 items without indexes).
-- Pilots and surveyors only **add** records (checkouts, returns, reservations, flight logs). Asset status is **derived** from those records, so non-admins never need edit rights on master lists.
-- One shared contract test suite runs against every adapter (SQLite now, SharePoint in Sprint 8).
+- Business logic talks only to ports (`Repository`, `AuthProvider`, `FileStore`, `Clock`) — **no SQL outside adapters**.
+- Every record carries a version/etag; a stale update raises `ConflictError`.
+- **No cross-record transactions** are assumed. Multi-item operations are sequences of idempotent commands with compensation on failure.
+- Lookups use indexed fields only (SharePoint slows past ~5,000 items without indexes).
+- Pilots and surveyors only **append** operational records. Status and totals are **derived** from them, so non-admins never need edit rights on master data.
+- One contract test suite runs against every adapter.
 
 ---
 
 ## 2. Roles & user rules
 
-| Role | DGCA licence | Can do |
+| Role | DGCA Remote Pilot Certificate | Can do |
 |---|---|---|
-| **Admin** (Manager/Admin, one role) | Optional | Everything: users, assets, locations, projects, approvals, maintenance, reports, backup/restore |
-| **Pilot** | **Mandatory** (number + expiry) | View assets/projects, reserve, check out / return drones & batteries, log flights, view own stats |
-| **Surveyor** | Optional | View assets/projects, reserve, check out / return DGPS equipment, log survey data, view own stats |
+| **Admin** (Manager/Admin, one role) | Optional | Everything: users, assets, sites, projects, approvals, maintenance sign-off, reports, backup/restore |
+| **Pilot** | **Mandatory** (number + expiry) | View assets/projects, reserve, deploy and return drone equipment, log sorties, report defects, view own stats |
+| **Surveyor** | Optional | View assets/projects, reserve, deploy and return survey equipment, log survey sessions, report defects, view own stats |
 
-**Every user:** employee ID (unique), email (unique), contact number, profile picture, full name, role.
-**Admins:** more than one allowed; the system must never be left with zero active admins.
-**Licence expiry:** a pilot with an expired DGCA licence cannot check out drones; warnings at 60/30/7 days.
+- **Every user:** employee ID (unique), email (unique), contact number, profile picture, full name, role.
+- **Admins:** more than one allowed; the system never allows zero active admins.
+- **Licence expiry:** a pilot with an expired certificate cannot be assigned drones; warnings at 60/30/7 days.
 
 ---
 
 ## 3. Sprint breakdown
 
 ### Sprint 0 — Foundation (1 week)
-- Git repo, `.gitignore`, README, this plan
-- Python project layout (`src/`, `tests/`), `pyproject.toml`, pinned dependencies, virtualenv
-- pytest + ruff; GitHub Actions running tests on every push
-- Import V1.2.3 as the baseline; remove the 22 PySide6 fallback stub classes
-- Architecture note: layers (UI → services → repository → adapter)
+- Repository layout per ARCHITECTURE.md (`src/ims/...`, `tests/...`), `pyproject.toml`, `uv` lock file
+- `ruff`, `mypy --strict` (domain), import-linter layer rules, `pytest`, `pytest-qt`, `hypothesis`
+- GitHub Actions: lint, type-check, tests, coverage, `pip-audit`
+- ADR template and the first ADRs (architecture, backend plans A/B, ID and time conventions)
+- Extract V1.2.3 business rules into a written rules catalogue (reference for later sprints)
+- Empty app window that launches, with logging and settings in place
 
-**Done when:** the baseline app launches, the existing tests pass locally and in CI.
+**Done when:** CI is green on an empty-but-real skeleton, and the app window opens.
 
-### Sprint 1 — Domain model & storage contract
-- Unified **Asset** model (Drone, Battery, DGPS rover/base, Payload, Accessory) replacing separate drone/DGPS tables
-- **Kit** entity (named group of assets checked out together)
-- `Repository` interface + **local SQLite adapter** with etag/version and SharePoint-like constraints
-- Contract test suite for the repository
-- Domain rules: role rules, DGCA requirement, mandatory user fields, last-admin protection
-- Port audit log and asset event history
+### Sprint 1 — Domain core & storage contract
+- Ports: `Repository`, `AuthProvider`, `FileStore`, `Clock`
+- Identity: users, roles, permission matrix, user rules (licence, mandatory fields, last-admin protection)
+- Equipment catalogue with three tracking modes (ARCHITECTURE.md §4.0): **serialized + lifecycle** (airframe, motors, propellers, landing gear, Helix GPS antenna, camera, logger, telemetry, batteries, DGPS receivers, PPK base, controllers), **tagged equipment** (laptop, card reader, hard disk, power bank, chargers, LiPo checker, anemometer, tripod, bipod, monopod, tribrach, SD cards), **consumable stock** (GCP banners)
+- Stock ledger model (receive, issue, return, consume, adjust)
+- **Serviceability** and **custody** state machines with allowed transitions
+- Usage ledger (hours, cycles, landings) with reversal-based corrections
+- Audit log for every command; idempotent command IDs
+- Local SQLite adapter (SQLAlchemy + Alembic) and the contract test suite
 
-**Done when:** all domain rules are covered by tests, with no SQL outside the adapter.
+**Done when:** all domain rules are unit-tested (≥ 90% coverage) and the SQLite adapter passes the contract tests.
 
-### Sprint 2 — App shell, users & locations
-- Login through `AuthProvider` (local accounts for now; Microsoft sign-in or Supabase Auth in Sprint 8)
-- App accounts: Admin creates users (no self sign-up), temporary password with forced change on first login, admin password reset, lockout after failed attempts, deactivation
-- Main window, navigation, role-based menus
-- User management: create/edit/deactivate, profile picture, DGCA licence number + expiry, employee ID, contact
-- Own-profile screen
-- Locations / mine sites CRUD
+### Sprint 2 — App shell, accounts & sites
+- Login via `AuthProvider` (local accounts for now)
+- Account management: Admin-created users, temporary password with forced change, admin reset, lockout, deactivation
+- Main window, navigation and role-based menus; background workers so screens never freeze
+- User profiles: picture, contact, employee ID, pilot certificate number and expiry (with file upload)
+- Sites / mine areas
 
 **Done when:** an Admin can onboard Pilots and Surveyors end to end.
 
-### Sprint 3 — Assets & kits
-- Asset catalog with filters (type, status, location, kit)
-- Add/edit/retire assets; serial number uniqueness
-- Kit builder
-- Asset detail page with full event history
-- Status derived from transactions (Available / Reserved / In-Field / Maintenance / Calibration Due / Retired)
-- Printable asset labels with QR code (serial + ID)
+### Sprint 3 — Asset registry, configuration & compliance
+- Asset catalogue, filters, add/edit/retire, asset detail with full history
+- **Configuration:** install/remove components on drones (motors, propellers, landing gear, Helix GPS antenna, camera, logger), with time-in-service per component
+- Kit templates and kits: "Drone kit" and "DGPS set" (base + rover receivers, controller, tripod, tribrach, bipod, batteries, chargers)
+- Consumables: GCP banner stock per location, purchase receipts, reorder levels
+- **Compliance documents** with expiry and alerts: drone UIN/registration, type certificate reference, insurance, calibration certificates
+- Firmware version records
+- QR-code asset labels
 
-**Done when:** the whole equipment register can be maintained in the app.
+**Done when:** the whole fleet is registered with components, documents and expiries.
 
-### Sprint 4 — Projects & deployments (before / after logging)
-- Projects: code, mine site, dates, chief pilot, surveyor, status
-- **Pre-project checkout:** pick kit/assets, pilot/surveyor, expected return; licence and availability checks
-- **Post-project check-in:** per-asset hours, battery cycles, return condition, notes, damage flag
-- Flight log entries per pilot; survey log per surveyor (area, images, PPK fix rate)
-- Multi-item checkout with compensation on partial failure
+### Sprint 4 — Projects, deployments & field logs
+- Projects: code, site, dates, chief pilot, surveyor, status
+- **Pre-project deployment:** choose kit/assets and crew; blocked automatically if any asset is unserviceable, overdue for maintenance, out of compliance, or the pilot's certificate has expired
+- **Sorties:** per-flight log (drone, battery, pilot, date, duration, cycles, landings, site)
+- **Survey sessions:** which receiver acted as base and which as rover, area, points, PPK/RTK fix rate
+- **GCP banners issued** to the project from stock at deployment
+- **Post-project return:** per-asset condition, damage and defect reporting; GCP banners returned vs consumed; SD cards linked to the flights they carried
+- Multi-item deployment with compensation on partial failure
 
-**Done when:** a full project cycle (checkout → field → return) works and updates stats.
+**Done when:** a full project cycle works and every hour and cycle lands in the usage ledger.
 
 ### Sprint 5 — Reservations
 - Reserve assets/kits for a date range against a project
-- Conflict detection (overlap with reservations, active checkouts, maintenance)
+- Conflict detection: overlaps with reservations, deployments, planned maintenance and expiring documents
 - Admin approval / rejection
-- Reservation calendar view (by asset and by project)
-- Convert an approved reservation into a checkout
+- Calendar views by asset and by project
+- Convert an approved reservation into a deployment
+- Reserve GCP banner quantities; warn if planned projects would push stock below the reorder level
+- Stock count (stocktake) with variance report
 
-**Done when:** double-booking is prevented and reservations flow into checkouts.
+**Done when:** double-booking is impossible, reservations flow into deployments, and GCP stock never runs out unnoticed.
 
-### Sprint 6 — Maintenance & battery lifecycle
-- Maintenance work orders (open → in progress → done), service types, performed by, parts/notes
-- Service schedules by flight hours, cycles or calendar
-- **Battery lifecycle:** per-battery cycle log, health %, optional internal resistance / swelling checks, retirement — **cycles are never reset by servicing** (fixes the V1.2.3 bug)
-- DGPS calibration records with certificate attachment and validity dates
-- Alerts: service due, calibration due, battery end-of-life, licence expiry
+### Sprint 6 — Airworthiness & maintenance
+- Maintenance programme per asset model: tasks due by hours, cycles or calendar, whichever comes first, with tolerances
+- Due and overdue list; overdue tasks ground the asset automatically
+- **Defects:** report → assess (ground immediately or defer with a limitation) → rectify
+- Work orders: open → in progress → awaiting parts → completed → **return to service** (Admin sign-off)
+- Life-limited components tracked through the configuration history
 
-**Done when:** every asset has a complete, accurate service and lifecycle history.
+**Done when:** no asset can be deployed with an overdue task or open grounding defect.
 
-### Sprint 7 — Stats, reports & forecasting
-- Pilot stats: hours by month/fiscal year, flights, aircraft flown, licence status
-- Surveyor stats: projects, area surveyed, PPK fix rates
-- Project stats: equipment used, hours, area, images, quality
+### Sprint 7 — Battery lifecycle & survey equipment
+- Separate lifecycle for every battery: drone flight batteries, DGPS receiver batteries, controller batteries
+- Battery cycle ledger, health %, optional internal resistance / cell imbalance / swelling checks; compatible chargers per battery family
+- Storage-charge reminders for idle batteries; retirement at cycle or health limits
+- **Servicing never resets cycles or health** (fixes the V1.2.3 bug)
+- GNSS calibration and verification records (method, reference point or lab, result, certificate, valid-until)
+- Alert centre combining maintenance, battery, calibration, document and licence alerts
+
+**Done when:** every battery and survey instrument has a complete, accurate lifecycle record.
+
+### Sprint 8 — Stats, reports & forecasting
+- Pilot stats: hours by month/fiscal year, sorties, drone models, certificate status
+- Surveyor stats: projects, area surveyed, fix rates
+- Project stats: equipment used, hours, area, images, quality, GCP banners consumed
+- GCP stock forecast: when stock runs out at the current survey rate
 - Fleet dashboard: utilisation, availability, alerts
-- **Predictive maintenance v1:** "service due in ~N days" from actual usage rate; battery degradation trend; risk score per asset
-- Excel and PDF export
+- **Predictive maintenance v1:** "task due in ~N days" from actual usage rate; battery degradation trend; risk score per asset
+- Excel and PDF exports
 
 **Done when:** management reports come from the app, not spreadsheets.
 
-### Sprint 8 — Backend integration & release (final)
-The plan is chosen by IT's answer before Sprint 8 starts.
+### Sprint 9 — Backend integration & release (final)
+The plan is chosen by IT's answer before Sprint 9 starts.
 
 **Plan A — SharePoint**
-- IMS SharePoint site, groups (IMS Admins / IMS Members) and list provisioning script
+- IMS SharePoint site, groups (IMS Admins / IMS Members) and list provisioning script with indexes
 - Microsoft sign-in (MSAL), roles mapped from the IMS Users list
-- **SharePoint adapter** for the repository; contract tests pass against it
+- **SharePoint adapter**; contract tests pass against it
 
 **Plan B — Supabase Pro**
-- Database tables and migrations, Row Level Security rules per role, storage bucket for pictures and certificates
+- Tables, migrations, Row Level Security rules per role, storage bucket for pictures and certificates
 - App-specific accounts on Supabase Auth: admin-created users, email password reset
-- **Supabase adapter** for the repository; contract tests pass against it
+- **Supabase adapter**; contract tests pass against it
 
 **Both plans**
-- Offline queue for entries made without connectivity
+- Offline command queue with replay
 - One-time migration of local data to the chosen backend
-- Admin backup: scheduled snapshot to local SQLite, browse offline, restore
-- Windows installer, user guide, UAT with real pilots/surveyors
+- Admin backup: scheduled snapshot to local SQLite, browse offline, tested restore
+- Code-signed Windows installer, update check, user guide, UAT with real pilots and surveyors
 
 **Done when:** all users run the installed app against the chosen backend, and a restore from backup has been tested.
 
-> **Risk:** Sprint 8 carries the most unknowns (IT permissions, Graph throttling, list limits). If it overruns, it splits into 8a (adapter + sign-in) and 8b (backup, installer, UAT), adding 2 weeks.
-> **Mitigation (recommended):** once IT approves, spend half a day in Sprint 1 or 2 on a throwaway test that reads and writes one list item through Graph. That confirms access early without changing the build order.
+> **Risk:** Sprint 9 carries the most unknowns (IT permissions, Graph throttling, list limits). The 2-week buffer is reserved for it.
+> **Mitigation (recommended):** once IT answers, spend half a day reading and writing one record against the chosen backend. That confirms access early without changing the build order.
 
 ---
 
-## 4. Backend options for Sprint 8
+## 4. Backend options for Sprint 9
 
 | | **Plan A — SharePoint** | **Plan B — Supabase Pro** |
 |---|---|---|
@@ -163,9 +182,7 @@ The plan is chosen by IT's answer before Sprint 8 starts.
 | Needs IT | Yes (see below) | No |
 | Later benefit | Data never leaves Microsoft 365 | A web or mobile app can reuse the same backend |
 
-The contract test suite from Sprint 1 keeps the switch cheap: whichever adapter is built must pass it. App-specific accounts are **not** combined with SharePoint, because that would need one shared secret embedded in every copy of the app and would still need IT consent.
-
-### Plan A prerequisites from IT (needed by Sprint 8)
+### Plan A prerequisites from IT
 - Entra ID app registration: public client (desktop), redirect URI `http://localhost`
 - Delegated Graph permissions: `User.Read`, `Sites.Selected` (write access granted on the IMS site only)
 - SharePoint site **IMS** with groups **IMS Admins** (Full Control) and **IMS Members** (Contribute)
@@ -174,24 +191,27 @@ The contract test suite from Sprint 1 keeps the switch cheap: whichever adapter 
 - Supabase Pro project in the Mumbai region, owned by a company email account
 - Manager approval for about $25/month
 
+---
+
 ## 5. Definition of Done (every sprint)
 - Features work in the running app, not just in tests
-- Unit and contract tests pass in CI
+- CI green: lint, types, tests, coverage gates, layer rules, dependency audit
 - Every data change writes an audit entry
-- No SQL outside the storage adapter
-- Sprint demo plus a short changelog entry
+- Database changes only through migrations
+- Sprint demo, changelog entry, and an ADR for any architecture change
 
 ## 6. Timeline
 
 | Sprint | Weeks | Focus |
 |---|---|---|
 | 0 | 1 | Foundation |
-| 1 | 2 | Domain model & storage contract |
-| 2 | 2 | App shell, users, locations |
-| 3 | 2 | Assets & kits |
-| 4 | 2 | Projects & deployments |
+| 1 | 2 | Domain core & storage contract |
+| 2 | 2 | App shell, accounts, sites |
+| 3 | 2 | Asset registry, configuration, compliance |
+| 4 | 2 | Projects, deployments, field logs |
 | 5 | 2 | Reservations |
-| 6 | 2 | Maintenance & battery lifecycle |
-| 7 | 2 | Stats, reports, forecasting |
-| 8 | 2 (+2 buffer) | SharePoint integration & release |
-| **Total** | **~17–19 weeks** | |
+| 6 | 2 | Airworthiness & maintenance |
+| 7 | 2 | Battery lifecycle & survey equipment |
+| 8 | 2 | Stats, reports, forecasting |
+| 9 | 2 (+2 buffer) | Backend integration & release |
+| **Total** | **~19–21 weeks** | |

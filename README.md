@@ -6,4 +6,4 @@ Desktop application for managing drone and DGPS survey equipment, pilots, survey
 - **Data:** local SQLite adapter during development → final sprint: SharePoint Lists with Microsoft sign-in (Plan A), or Supabase Pro with app-specific accounts (Plan B)
 - **Roles:** Admin, Pilot (DGCA licence required), Surveyor
 
-See [docs/SPRINT_PLAN.md](docs/SPRINT_PLAN.md) for the roadmap.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and [docs/SPRINT_PLAN.md](docs/SPRINT_PLAN.md) for the roadmap.
