@@ -30,3 +30,4 @@ backups/
 Thumbs.db
 .DS_Store
 *.sqlite3
+coverage.xml
