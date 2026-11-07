@@ -5,9 +5,11 @@ description = "Inventory, airworthiness and operations management for drone and 
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "alembic>=1.20.1",
     "platformdirs>=4.14.5",
     "pydantic>=2.14.3",
     "pyside6>=6.12.0",
+    "sqlalchemy>=2.1.8",
     "structlog>=26.1.0",
 ]
 
@@ -41,6 +43,7 @@ select = [
     "DTZ",           # timezone-aware datetimes only
     "T20",           # no print()
 ]
+ignore = ["N818"]  # domain exceptions read better without an "Error" suffix (RuleViolation, NotFound)
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]  # assert is how pytest works
@@ -52,6 +55,16 @@ strict = true
 mypy_path = "src"
 packages = ["ims"]
 warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]

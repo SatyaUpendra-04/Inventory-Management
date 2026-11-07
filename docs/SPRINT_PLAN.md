@@ -60,8 +60,8 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 
 **Done when:** CI is green on an empty-but-real skeleton, and the app window opens.
 
-### Sprint 1 — Domain core & storage contract
-- Ports: `Repository`, `AuthProvider`, `FileStore`, `Clock`
+### Sprint 1 — Domain core & storage contract ✅ (done 2026-11-08)
+- Ports: storage repositories and `Clock` (`AuthProvider` and `FileStore` moved to Sprint 3, where they are first used)
 - Identity: users, roles, permission matrix, user rules (licence, mandatory fields, last-admin protection)
 - Equipment catalogue with three tracking modes (ARCHITECTURE.md §4.0): **serialized + lifecycle** (airframe, motors, propellers, landing gear, Helix GPS antenna, camera, logger, telemetry, batteries, DGPS receivers, PPK base, controllers), **tagged equipment** (laptop, card reader, hard disk, power bank, chargers, LiPo checker, anemometer, tripod, bipod, monopod, tribrach, SD cards), **consumable stock** (GCP banners)
 - Stock ledger model (receive, issue, return, consume, adjust)
@@ -71,6 +71,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - Local SQLite adapter (SQLAlchemy + Alembic) and the contract test suite
 
 **Done when:** all domain rules are unit-tested (≥ 90% coverage) and the SQLite adapter passes the contract tests.
+**Result:** 225 tests; domain coverage 99%, overall 97.6%; in-memory and SQLite adapters both pass the 20-test storage contract; ADR-0005 records the retry-safety design.
 
 ### Sprint 2 — Design system & app shell
 - Switch the UI to **Qt Quick (QML)** with Python view-models (ADR-0004); replace the Sprint 0 window
@@ -85,7 +86,8 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** the shell and every component work in all themes, contrast tests pass, and you have approved the look and motion in a review session.
 
 ### Sprint 3 — Accounts, users & sites
-- Login via `AuthProvider` (local accounts for now)
+- `AuthProvider` and `FileStore` ports (moved from Sprint 1)
+- Login via `AuthProvider` (local accounts with Argon2 hashing for now)
 - Account management: Admin-created users, temporary password with forced change, admin reset, lockout, deactivation
 - Role-based navigation; every action runs on background workers so screens never freeze
 - User profiles: picture, contact, employee ID, pilot certificate number and expiry (with file upload)
@@ -217,7 +219,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | Sprint | Weeks | Focus |
 |---|---|---|
 | 0 | 1 | Foundation ✅ |
-| 1 | 2 | Domain core & storage contract |
+| 1 | 2 | Domain core & storage contract ✅ |
 | 2 | 2 | Design system & app shell |
 | 3 | 2 | Accounts, users, sites |
 | 4 | 2 | Asset registry, configuration, compliance |
