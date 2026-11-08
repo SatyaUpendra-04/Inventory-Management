@@ -11,7 +11,8 @@ ApplicationWindow {
     height: 860
     minimumWidth: 1024
     minimumHeight: 640
-    visible: true
+    // Shown by Component.onCompleted, already maximised, so it never flashes small first.
+    visible: false
     title: qsTr("Inventory Management")
     color: Theme.colors.window
     font.family: Theme.type.family
@@ -85,7 +86,14 @@ ApplicationWindow {
         function onCurrentChanged() { window.showPage(Shell.currentSection) }
     }
 
+    Component.onCompleted: StartMaximized ? showMaximized() : show()
+
     Shortcut { sequence: "Ctrl+,"; onActivated: Shell.navigate("settings") }
+    // F11: true full screen (no title bar or taskbar) and back to a maximised window.
+    Shortcut {
+        sequences: ["F11"]
+        onActivated: window.visibility === Window.FullScreen ? window.showMaximized() : window.showFullScreen()
+    }
     Shortcut { sequence: "Ctrl+Shift+L"; onActivated: window.transitionTheme(function () { Theme.setMode(Theme.dark ? "light" : "dark") }) }
 
     ToastHost {

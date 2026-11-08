@@ -61,6 +61,11 @@ class UserService:
         actor.require(Permission.USER_MANAGE)
         return self._s.users.list(include_deleted=include_deleted)
 
+    def crew_directory(self, actor: Actor) -> list[User]:
+        """Active people who can be chosen as crew; open to everyone who sees projects."""
+        actor.require(Permission.PROJECT_VIEW)
+        return [u for u in self._s.users.list() if u.is_active]
+
     def needs_first_admin(self) -> bool:
         return self._s.users.count_active_admins() == 0
 

@@ -108,9 +108,11 @@ _ROLES = (
 def _meters_text(meters: dict[Meter, Decimal]) -> str:
     parts = []
     if Meter.HOURS in meters:
-        parts.append(f"{meters[Meter.HOURS]:,.1f} h")
+        hours = f"{meters[Meter.HOURS]:,.2f}".rstrip("0").rstrip(".")
+        parts.append(f"{hours} h")
     if Meter.CYCLES in meters:
-        parts.append(f"{meters[Meter.CYCLES]:,.0f} cycles")
+        cycles = int(meters[Meter.CYCLES])
+        parts.append(f"{cycles:,} cycle{'' if cycles == 1 else 's'}")
     return " · ".join(parts)
 
 

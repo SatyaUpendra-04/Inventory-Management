@@ -22,7 +22,10 @@ from ims.adapters.system_clock import SystemClock
 from ims.application.accounts import AccountService
 from ims.application.assets import AssetService
 from ims.application.catalogue import CatalogueService
+from ims.application.deployments import DeploymentService
+from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
+from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
 from ims.application.runner import CommandRunner
 from ims.application.sites import SiteService
@@ -55,6 +58,9 @@ def build_services(data_dir: Path) -> tuple[Services, Callable[[], None]]:
         registry=RegistryService(storage, runner, clock, files),
         kits=KitService(storage, runner, clock),
         stock=StockService(storage, runner, clock),
+        projects=ProjectService(storage, runner, clock),
+        deployments=DeploymentService(storage, runner, clock),
+        logs=FieldLogService(storage, runner, clock),
         clock=clock,
     )
     return services, engine.dispose
@@ -93,6 +99,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         services,
         version=__version__,
         environment=settings.environment.value,
+        start_maximized=True,
     )
     ui.engine.warnings.connect(
         lambda warnings: [log.warning("qml_warning", message=w.toString()) for w in warnings]

@@ -6,12 +6,13 @@ from datetime import date
 from decimal import Decimal
 
 from ims.application.context import Actor, CommandContext
-from ims.application.runner import CommandRunner, Outcome, add_once
+from ims.application.ledgers import append_usage
+from ims.application.runner import CommandRunner, Outcome
 from ims.domain.assets.catalogue import Meter
 from ims.domain.common.errors import NotFound
 from ims.domain.common.ids import AssetId, EntryId, ProjectId
 from ims.domain.identity.roles import Permission
-from ims.domain.usage.ledger import UsageEntry, UsageSource, check_new_entry, totals
+from ims.domain.usage.ledger import UsageEntry, UsageSource, totals
 from ims.ports.clock import Clock
 from ims.ports.repository import Storage
 
@@ -77,25 +78,12 @@ class UsageService:
         entry_id = EntryId(ctx.derive("usage"))
 
         def execute() -> Outcome:
-            asset = self._s.assets.get(asset_id)
-            if asset is None or asset.is_deleted:
-                raise NotFound("Asset not found.")
-            item_type = self._s.item_types.get(asset.item_type_id)
-            if item_type is None:
-                raise NotFound("Item type not found.")
-            existing = self._s.usage.for_asset(asset_id)
-            done = next((e for e in existing if e.id == entry_id), None)
-            if done is None:
-                entry = UsageEntry.build(
-                    id=entry_id, asset_id=asset_id, sequence=len(existing) + 1, meter=meter,
-                    amount=amount, occurred_on=occurred_on, source=source,
-                    recorded_at=self._clock.now(), recorded_by=actor.user_id,
-                    command_id=ctx.command_id, project_id=project_id, reverses=reverses, note=note,
-                )  # fmt: skip
-                check_new_entry(existing, entry, item_type)
-                add_once(self._s.usage.append, entry)
-                done = entry
-            return Outcome("usage_entry", str(entry_id), None, done.model_dump(mode="json"))
+            entry = append_usage(
+                self._s, self._clock, ctx, actor, asset_id, meter=meter, amount=amount,
+                occurred_on=occurred_on, source=source, project_id=project_id, note=note,
+                reverses=reverses,
+            )  # fmt: skip
+            return Outcome("usage_entry", str(entry_id), None, entry.model_dump(mode="json"))
 
         self._run.run(ctx, action, execute)
         return entry_id

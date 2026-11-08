@@ -4,6 +4,26 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 5 (Projects, deployments & field logs)
+- **Projects** page: survey jobs with site, client, dates, chief pilot (must hold a valid DGCA certificate) and lead surveyor; suggested codes such as PRJ-KJR-2611; open / completed / cancelled filters; complete, cancel, reopen and remove
+- **Check out equipment** to a project: choose kits (every member goes), extra equipment, crew and GCP banners. A live readiness check lists everything that stops it: grounded or retired items, items already out or in maintenance, missing or expired UIN, insurance or calibration, grounded parts fitted to a drone, a drone without a licensed pilot, pilots with expired certificates, too few GCP banners. Incomplete kits and certificates about to expire are warnings
+- **Safe multi-item check-out:** if any step is refused part-way (for example someone else took the same drone a moment earlier), everything already done is undone and nothing is left half-deployed (ADR-0007)
+- **Flight logs:** drone, pilot, date, minutes, landings, cycles, batteries, PPK base and the SD cards that carried the data. Hours, landings and cycles go onto the drone and every part fitted to it; each battery gets a cycle
+- **Survey sessions:** RTK, PPK or static; which receiver was the base and which were rovers; controller, batteries, area, points and fix rate. Receivers gain the session hours
+- **Cancelling a wrong log** (administrators) reverses exactly the usage it added
+- **Return equipment:** each item OK, usable with a defect (marked limited) or damaged (grounded and sent to maintenance); GCP banners brought back to a chosen store, the rest recorded as used on site
+- **Deployments** page: what is out now, and the history of check-outs
+- **Your projects** for pilots and surveyors: *Assigned* (open projects where you are chief pilot, lead surveyor, in a crew that took equipment out, or on a log; active first) and *Completed*, with counts, your role and your own flights and survey time; *Your part* on the project sheet
+- Project totals: flights and flight time, survey sessions and time, area, points, GCP banners issued, returned and used
+- Database migration 0004 (projects, deployments, sorties, survey sessions)
+- ADR-0007
+
+### Changed — Sprint 5
+- **Date picker:** click the month title to pick a month, click again to pick a year (12 at a time); arrows step by month, year or 12 years to match; Page Up / Page Down (Shift for a year); new Today and Clear buttons
+- The app opens maximised to fill the screen; **F11** switches to true full screen and back
+- Usage on the equipment list shows hours to two decimals ("0.75 h", not "0.8 h") and "1 cycle" in the singular
+- Long sheets reserve their scroll-bar space without a layout feedback loop
+
 ### Added — Sprint 4 (Asset registry, configuration & compliance)
 - **Equipment** page: every asset with condition, location, usage and document status; search, category filter and a "needs attention" filter
 - **Register and edit assets** with the next free tag suggested (DRN-0001, R12 receivers, tripods ...), home site, warranty and opening flight hours, cycles and landings for second-hand equipment

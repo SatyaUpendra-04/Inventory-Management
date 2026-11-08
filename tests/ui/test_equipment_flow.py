@@ -84,7 +84,7 @@ def test_signing_in_installs_the_catalogue_and_filters_work(ui: UiContext) -> No
     register(ui, "Motor", "M-1")
     register(ui, "Tripod", "TP-1")
     assert ui.equipment.property("total") == 3
-    assert drone["meters"] == "42.0 h" and drone["makeModel"] == "IdeaForge Q6"
+    assert drone["meters"] == "42 h" and drone["makeModel"] == "IdeaForge Q6"
     # A drone with no UIN or insurance needs attention.
     assert drone["complianceKind"] == "danger"
     assert ui.equipment.property("attentionCount") == 1

@@ -22,6 +22,9 @@ EntryId = NewType("EntryId", uuid.UUID)
 DocumentId = NewType("DocumentId", uuid.UUID)
 KitId = NewType("KitId", uuid.UUID)
 KitTemplateId = NewType("KitTemplateId", uuid.UUID)
+DeploymentId = NewType("DeploymentId", uuid.UUID)
+SortieId = NewType("SortieId", uuid.UUID)
+SurveySessionId = NewType("SurveySessionId", uuid.UUID)
 
 _VERSION_7 = 0x7
 _VARIANT_RFC = 0b10

@@ -21,15 +21,22 @@ from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
 from ims.domain.common.ids import (
     AssetId,
     CommandId,
+    DeploymentId,
     DocumentId,
     ItemTypeId,
     KitId,
     KitTemplateId,
     LocationId,
+    ProjectId,
+    SortieId,
+    SurveySessionId,
     UserId,
 )
 from ims.domain.identity.user import User
 from ims.domain.kits import Kit, KitTemplate
+from ims.domain.operations.deployment import Deployment
+from ims.domain.operations.field_logs import Sortie, SurveySession
+from ims.domain.operations.project import Project
 from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.stock.reorder import ReorderLevel
@@ -402,6 +409,95 @@ class MemoryAudit:
         return sorted(self._entries.values(), key=lambda e: (e.at, e.id), reverse=True)[:limit]
 
 
+class MemoryProjects:
+    def __init__(self) -> None:
+        self._t: _Table[Project] = _Table("project", {"code": lambda p: p.code})
+
+    def get(self, project_id: ProjectId) -> Project | None:
+        return self._t.rows.get(project_id)
+
+    def find_by_code(self, code: str) -> Project | None:
+        normalised = code.strip().upper().replace(" ", "-")
+        if not normalised.startswith("PRJ-"):
+            normalised = f"PRJ-{normalised}"
+        return self._t.find("code", normalised)
+
+    def list(self, *, include_deleted: bool = False) -> list[Project]:
+        rows = [p for p in self._t.rows.values() if include_deleted or not p.is_deleted]
+        return sorted(rows, key=lambda p: (p.starts_on, p.code), reverse=True)
+
+    def add(self, project: Project) -> None:
+        self._t.add(project)
+
+    def update(self, project: Project) -> None:
+        self._t.update(project)
+
+
+class MemoryDeployments:
+    def __init__(self) -> None:
+        self._t: _Table[Deployment] = _Table("deployment", {})
+
+    def get(self, deployment_id: DeploymentId) -> Deployment | None:
+        return self._t.rows.get(deployment_id)
+
+    def for_project(self, project_id: ProjectId) -> list[Deployment]:
+        rows = [d for d in self._t.rows.values() if d.project_id == project_id]
+        return sorted(rows, key=lambda d: (d.created_at, str(d.id)))
+
+    def list(self) -> list[Deployment]:
+        return sorted(self._t.rows.values(), key=lambda d: (d.created_at, str(d.id)), reverse=True)
+
+    def add(self, deployment: Deployment) -> None:
+        self._t.add(deployment)
+
+    def update(self, deployment: Deployment) -> None:
+        self._t.update(deployment)
+
+
+class MemorySorties:
+    def __init__(self) -> None:
+        self._t: _Table[Sortie] = _Table("flight log", {})
+
+    def get(self, sortie_id: SortieId) -> Sortie | None:
+        return self._t.rows.get(sortie_id)
+
+    def for_project(self, project_id: ProjectId) -> list[Sortie]:
+        rows = [r for r in self._t.rows.values() if r.project_id == project_id]
+        return sorted(rows, key=lambda r: (r.flown_on, r.recorded_at, str(r.id)))
+
+    def list(self) -> list[Sortie]:
+        return sorted(self._t.rows.values(), key=lambda r: (r.flown_on, r.recorded_at, str(r.id)))
+
+    def add(self, sortie: Sortie) -> None:
+        self._t.add(sortie)
+
+    def update(self, sortie: Sortie) -> None:
+        self._t.update(sortie)
+
+
+class MemorySurveySessions:
+    def __init__(self) -> None:
+        self._t: _Table[SurveySession] = _Table("survey session", {})
+
+    def get(self, session_id: SurveySessionId) -> SurveySession | None:
+        return self._t.rows.get(session_id)
+
+    def for_project(self, project_id: ProjectId) -> list[SurveySession]:
+        rows = [r for r in self._t.rows.values() if r.project_id == project_id]
+        return sorted(rows, key=lambda r: (r.surveyed_on, r.recorded_at, str(r.id)))
+
+    def list(self) -> list[SurveySession]:
+        return sorted(
+            self._t.rows.values(), key=lambda r: (r.surveyed_on, r.recorded_at, str(r.id))
+        )
+
+    def add(self, session: SurveySession) -> None:
+        self._t.add(session)
+
+    def update(self, session: SurveySession) -> None:
+        self._t.update(session)
+
+
 class MemoryCommandLog:
     def __init__(self) -> None:
         self._records: dict[CommandId, CommandRecord] = {}
@@ -430,6 +526,10 @@ def memory_storage() -> Storage:
         kit_templates=MemoryKitTemplates(),
         kits=MemoryKits(),
         reorder_levels=MemoryReorderLevels(),
+        projects=MemoryProjects(),
+        deployments=MemoryDeployments(),
+        sorties=MemorySorties(),
+        survey_sessions=MemorySurveySessions(),
         audit=MemoryAudit(),
         commands=MemoryCommandLog(),
     )

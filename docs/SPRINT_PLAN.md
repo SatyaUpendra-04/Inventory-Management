@@ -109,7 +109,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** the whole fleet is registered with components, documents and expiries.
 **Result:** Equipment page (search, category and needs-attention filters, register and edit with suggested tags and opening meter readings), asset sheet (status actions limited by role, fitted parts, documents with scans and expiry, firmware, status history), kits checked against the Drone kit and DGPS set templates, GCP stock page (receive, write off, stock count with automatic adjustment, reorder levels), 21-up A4 QR label sheets as PDF. Migration 0003. 427 tests, 93% coverage; domain 97%+; zero QML warnings.
 
-### Sprint 5 — Projects, deployments & field logs
+### Sprint 5 — Projects, deployments & field logs ✅ (done 2026-11-08)
 - Projects: code, site, dates, chief pilot, surveyor, status
 - **Pre-project deployment:** choose kit/assets and crew; blocked automatically if any asset is unserviceable, overdue for maintenance, out of compliance, or the pilot's certificate has expired
 - **Sorties:** per-flight log (drone, battery, pilot, date, duration, cycles, landings, site)
@@ -119,6 +119,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - Multi-item deployment with compensation on partial failure
 
 **Done when:** a full project cycle works and every hour and cycle lands in the usage ledger.
+**Result:** Projects and Deployments pages; check-out with a live readiness check (condition, custody, documents, fitted parts, DGCA certificates, GCP stock); compensating multi-item check-out (ADR-0007); flight logs feeding hours, landings and cycles to drones, fitted parts, batteries and PPK bases; survey sessions with base/rover roles; voiding that reverses usage exactly; returns with per-item condition and GCP returned vs used; Assigned / Completed project tabs for pilots and surveyors with their own role and logged work. Migration 0004. 461 tests, 91% coverage; domain 99%; zero QML warnings.
 
 ### Sprint 6 — Reservations
 - Reserve assets/kits for a date range against a project
@@ -226,7 +227,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | 2 | 2 | Design system & app shell ✅ |
 | 3 | 2 | Accounts, users, sites ✅ |
 | 4 | 2 | Asset registry, configuration, compliance ✅ |
-| 5 | 2 | Projects, deployments, field logs |
+| 5 | 2 | Projects, deployments, field logs ✅ |
 | 6 | 2 | Reservations |
 | 7 | 2 | Airworthiness & maintenance |
 | 8 | 2 | Battery lifecycle & survey equipment |

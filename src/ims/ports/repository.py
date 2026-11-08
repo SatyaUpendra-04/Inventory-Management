@@ -31,16 +31,23 @@ from ims.domain.audit import AuditEntry
 from ims.domain.common.ids import (
     AssetId,
     CommandId,
+    DeploymentId,
     DocumentId,
     ItemTypeId,
     KitId,
     KitTemplateId,
     LocationId,
+    ProjectId,
+    SortieId,
+    SurveySessionId,
     UserId,
 )
 from ims.domain.common.model import UtcDateTime, ValueModel
 from ims.domain.identity.user import User
 from ims.domain.kits import Kit, KitTemplate
+from ims.domain.operations.deployment import Deployment
+from ims.domain.operations.field_logs import Sortie, SurveySession
+from ims.domain.operations.project import Project
 from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.stock.reorder import ReorderLevel
@@ -153,6 +160,53 @@ class ReorderLevelRepository(Protocol):
     def update(self, level: ReorderLevel) -> None: ...
 
 
+class ProjectRepository(Protocol):
+    def get(self, project_id: ProjectId) -> Project | None: ...
+    def find_by_code(self, code: str) -> Project | None: ...
+    def list(self, *, include_deleted: bool = False) -> list[Project]:
+        """Newest start date first."""
+        ...
+
+    def add(self, project: Project) -> None: ...
+    def update(self, project: Project) -> None: ...
+
+
+class DeploymentRepository(Protocol):
+    def get(self, deployment_id: DeploymentId) -> Deployment | None: ...
+    def for_project(self, project_id: ProjectId) -> list[Deployment]:
+        """Oldest first."""
+        ...
+
+    def list(self) -> list[Deployment]:
+        """Newest first."""
+        ...
+
+    def add(self, deployment: Deployment) -> None: ...
+    def update(self, deployment: Deployment) -> None: ...
+
+
+class SortieRepository(Protocol):
+    def get(self, sortie_id: SortieId) -> Sortie | None: ...
+    def for_project(self, project_id: ProjectId) -> list[Sortie]:
+        """In flight-date order."""
+        ...
+
+    def list(self) -> list[Sortie]: ...
+    def add(self, sortie: Sortie) -> None: ...
+    def update(self, sortie: Sortie) -> None: ...
+
+
+class SurveySessionRepository(Protocol):
+    def get(self, session_id: SurveySessionId) -> SurveySession | None: ...
+    def for_project(self, project_id: ProjectId) -> list[SurveySession]:
+        """In survey-date order."""
+        ...
+
+    def list(self) -> list[SurveySession]: ...
+    def add(self, session: SurveySession) -> None: ...
+    def update(self, session: SurveySession) -> None: ...
+
+
 class AuditRepository(Protocol):
     def append(self, entry: AuditEntry) -> None: ...
     def for_entity(self, entity: str, entity_id: str) -> list[AuditEntry]: ...
@@ -191,5 +245,9 @@ class Storage:
     kit_templates: KitTemplateRepository
     kits: KitRepository
     reorder_levels: ReorderLevelRepository
+    projects: ProjectRepository
+    deployments: DeploymentRepository
+    sorties: SortieRepository
+    survey_sessions: SurveySessionRepository
     audit: AuditRepository
     commands: CommandLog

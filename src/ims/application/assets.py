@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from ims.application.context import Actor, CommandContext
+from ims.application.ledgers import append_status
 from ims.application.runner import CommandRunner, Outcome, add_once, update_once
 from ims.domain.assets.asset import Asset, check_asset_against_type
 from ims.domain.assets.catalogue import ItemType, Meter
@@ -15,9 +16,7 @@ from ims.domain.assets.status import (
     AssetStatus,
     StatusChange,
     StatusEvent,
-    apply_change,
     replay,
-    required_permissions,
 )
 from ims.domain.common.errors import ConflictError, NotFound, RuleViolation
 from ims.domain.common.ids import AssetId, EntryId, ItemTypeId, LocationId
@@ -153,26 +152,10 @@ class AssetService:
 
         def execute() -> Outcome:
             self._require(asset_id)
-            events = self._s.status_events.for_asset(asset_id)
-            event_id = EntryId(ctx.derive("status"))
-            done = next((e for e in events if e.id == event_id), None)
-            if done is not None:  # retry of an applied change
-                return Outcome(
-                    "asset_status", str(asset_id), None, done.after.model_dump(mode="json")
-                )
-            current = replay(events)
-            actor.require(*sorted(required_permissions(current, change)))
-            after = apply_change(current, change)
-            event = StatusEvent(
-                id=event_id, asset_id=asset_id, sequence=len(events) + 1,
-                command_id=ctx.command_id, recorded_at=self._clock.now(),
-                recorded_by=actor.user_id, before=current, after=after,
-                reason=change.reason, project_id=change.project_id,
-            )  # fmt: skip
-            add_once(self._s.status_events.append, event)
+            event = append_status(self._s, self._clock, ctx, actor, asset_id, change)
             return Outcome(
-                "asset_status", str(asset_id), current.model_dump(mode="json"),
-                after.model_dump(mode="json"),
+                "asset_status", str(asset_id), event.before.model_dump(mode="json"),
+                event.after.model_dump(mode="json"),
             )  # fmt: skip
 
         self._run.run(ctx, "asset.change_status", execute)

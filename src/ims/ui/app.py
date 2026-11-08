@@ -17,9 +17,11 @@ from ims.ui.models.sample_equipment import SampleEquipmentModel, SortableModel
 from ims.ui.tasks import TaskQueue
 from ims.ui.theme.icons import IconProvider
 from ims.ui.theme.manager import ThemeManager
+from ims.ui.viewmodels.deployments import DeploymentsViewModel
 from ims.ui.viewmodels.equipment import EquipmentViewModel
 from ims.ui.viewmodels.kits import KitsViewModel
 from ims.ui.viewmodels.people import PeopleViewModel
+from ims.ui.viewmodels.projects import ProjectsViewModel
 from ims.ui.viewmodels.session import SessionViewModel
 from ims.ui.viewmodels.shell import ShellViewModel
 from ims.ui.viewmodels.sites import SitesViewModel
@@ -43,6 +45,8 @@ class UiContext:
     equipment: EquipmentViewModel
     kits: KitsViewModel
     stock: StockViewModel
+    projects: ProjectsViewModel
+    deployments: DeploymentsViewModel
     sample_table: SortableModel
 
 
@@ -54,6 +58,7 @@ def create_engine(
     environment: str,
     initial_section: str = "dashboard",
     synchronous_tasks: bool = False,
+    start_maximized: bool = False,
     root_qml: Path = MAIN_QML,
     parent: QObject | None = None,
 ) -> UiContext:
@@ -75,13 +80,20 @@ def create_engine(
     equipment = EquipmentViewModel(session, services, tasks, engine)
     kits = KitsViewModel(session, services, tasks, engine)
     stock = StockViewModel(session, services, tasks, engine)
+    projects = ProjectsViewModel(session, services, tasks, engine)
+    deployments = DeploymentsViewModel(session, services, tasks, engine)
     sample_table = SortableModel(SampleEquipmentModel(engine), engine)
 
     session.signedIn.connect(lambda: shell.set_permissions(session.permission_codes()))
     session.signedOut.connect(lambda: shell.set_permissions(()))
     people.saved.connect(lambda message: toasts.show("success", message, ""))
-    for model in (sites, equipment, kits, stock):
+    for model in (sites, equipment, kits, stock, projects, deployments):
         model.saved.connect(lambda message: toasts.show("success", message, ""))
+    # Checking out, returning and logging change equipment, stock and project views.
+    for source in (projects, deployments):
+        for target in (projects, deployments, equipment, stock):
+            if target is not source:
+                source.saved.connect(lambda _message, t=target: t.refresh())
 
     context = engine.rootContext()
     for name, value in {
@@ -95,9 +107,12 @@ def create_engine(
         "Equipment": equipment,
         "Kits": kits,
         "Stock": stock,
+        "Projects": projects,
+        "Deployments": deployments,
         "SampleTable": sample_table,
         "AppVersion": version,
         "AppEnvironment": environment,
+        "StartMaximized": start_maximized,
     }.items():
         context.setContextProperty(name, value)
 
@@ -114,6 +129,8 @@ def create_engine(
         equipment,
         kits,
         stock,
+        projects,
+        deployments,
         sample_table,
     )
 

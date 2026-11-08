@@ -25,16 +25,23 @@ from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
 from ims.domain.common.ids import (
     AssetId,
     CommandId,
+    DeploymentId,
     DocumentId,
     ItemTypeId,
     KitId,
     KitTemplateId,
     LocationId,
+    ProjectId,
+    SortieId,
+    SurveySessionId,
     UserId,
 )
 from ims.domain.identity.roles import Role
 from ims.domain.identity.user import PilotLicence, User
 from ims.domain.kits import Kit, KitTemplate
+from ims.domain.operations.deployment import Deployment
+from ims.domain.operations.field_logs import Sortie, SurveySession
+from ims.domain.operations.project import Project
 from ims.domain.sites.site import Site, SiteKind, SiteStatus
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.stock.reorder import ReorderLevel
@@ -847,6 +854,131 @@ class SqliteReorderLevels(_Base):
         self._update_versioned(_reorder_row(level))
 
 
+# ------------------------------------------------------------------ operations
+#
+# Operations records map field-for-field onto their tables; list-valued fields are stored
+# as JSON text (SharePoint will hold them in multi-line text columns the same way).
+
+
+def _record_row(record: Any, json_fields: frozenset[str]) -> dict[str, Any]:
+    row: dict[str, Any] = record.model_dump(mode="json")
+    for name in json_fields:
+        row[name] = json.dumps(row[name])
+    return row
+
+
+def _record_of[T](model: type[T], json_fields: frozenset[str]) -> Callable[[Row[Any]], T]:
+    def read(r: Row[Any]) -> T:
+        data = dict(r._mapping)
+        for name in json_fields:
+            data[name] = json.loads(data[name])
+        return model.model_validate(data)  # type: ignore[attr-defined, no-any-return]
+
+    return read
+
+
+_DEPLOYMENT_JSON = frozenset({"asset_ids", "kit_ids", "crew_ids", "returns"})
+_SORTIE_JSON = frozenset({"battery_ids", "media_ids", "usage_entries"})
+_SESSION_JSON = frozenset({"rover_ids", "battery_ids", "usage_entries"})
+
+
+class SqliteProjects(_Base):
+    table, label = s.projects, "project"
+    _read = staticmethod(_record_of(Project, frozenset()))
+
+    def get(self, project_id: ProjectId) -> Project | None:
+        return self._one(s.projects.c.id == str(project_id), self._read)
+
+    def find_by_code(self, code: str) -> Project | None:
+        normalised = code.strip().upper().replace(" ", "-")
+        if not normalised.startswith("PRJ-"):
+            normalised = f"PRJ-{normalised}"
+        return self._one(s.projects.c.code == normalised, self._read)
+
+    def list(self, *, include_deleted: bool = False) -> list[Project]:
+        t = s.projects
+        query = select(t).order_by(t.c.starts_on.desc(), t.c.code.desc())
+        if not include_deleted:
+            query = query.where(t.c.deleted_at.is_(None))
+        return self._many(query, self._read)
+
+    def add(self, project: Project) -> None:
+        self._insert(_record_row(project, frozenset()))
+
+    def update(self, project: Project) -> None:
+        self._update_versioned(_record_row(project, frozenset()))
+
+
+class SqliteDeployments(_Base):
+    table, label = s.deployments, "deployment"
+    _read = staticmethod(_record_of(Deployment, _DEPLOYMENT_JSON))
+
+    def get(self, deployment_id: DeploymentId) -> Deployment | None:
+        return self._one(s.deployments.c.id == str(deployment_id), self._read)
+
+    def for_project(self, project_id: ProjectId) -> list[Deployment]:
+        t = s.deployments
+        query = select(t).where(t.c.project_id == str(project_id))
+        return self._many(query.order_by(t.c.created_at, t.c.id), self._read)
+
+    def list(self) -> list[Deployment]:
+        t = s.deployments
+        return self._many(select(t).order_by(t.c.created_at.desc(), t.c.id.desc()), self._read)
+
+    def add(self, deployment: Deployment) -> None:
+        self._insert(_record_row(deployment, _DEPLOYMENT_JSON))
+
+    def update(self, deployment: Deployment) -> None:
+        self._update_versioned(_record_row(deployment, _DEPLOYMENT_JSON))
+
+
+class SqliteSorties(_Base):
+    table, label = s.sorties, "flight log"
+    _read = staticmethod(_record_of(Sortie, _SORTIE_JSON))
+
+    def get(self, sortie_id: SortieId) -> Sortie | None:
+        return self._one(s.sorties.c.id == str(sortie_id), self._read)
+
+    def for_project(self, project_id: ProjectId) -> list[Sortie]:
+        t = s.sorties
+        query = select(t).where(t.c.project_id == str(project_id))
+        return self._many(query.order_by(t.c.flown_on, t.c.recorded_at, t.c.id), self._read)
+
+    def list(self) -> list[Sortie]:
+        t = s.sorties
+        return self._many(select(t).order_by(t.c.flown_on, t.c.recorded_at, t.c.id), self._read)
+
+    def add(self, sortie: Sortie) -> None:
+        self._insert(_record_row(sortie, _SORTIE_JSON))
+
+    def update(self, sortie: Sortie) -> None:
+        self._update_versioned(_record_row(sortie, _SORTIE_JSON))
+
+
+class SqliteSurveySessions(_Base):
+    table, label = s.survey_sessions, "survey session"
+    _read = staticmethod(_record_of(SurveySession, _SESSION_JSON))
+
+    def get(self, session_id: SurveySessionId) -> SurveySession | None:
+        return self._one(s.survey_sessions.c.id == str(session_id), self._read)
+
+    def for_project(self, project_id: ProjectId) -> list[SurveySession]:
+        t = s.survey_sessions
+        query = select(t).where(t.c.project_id == str(project_id))
+        return self._many(query.order_by(t.c.surveyed_on, t.c.recorded_at, t.c.id), self._read)
+
+    def list(self) -> list[SurveySession]:
+        t = s.survey_sessions
+        query = select(t).order_by(t.c.surveyed_on, t.c.recorded_at, t.c.id)
+        return self._many(query, self._read)
+
+    def add(self, session: SurveySession) -> None:
+        self._insert(_record_row(session, _SESSION_JSON))
+
+    def update(self, session: SurveySession) -> None:
+        self._update_versioned(_record_row(session, _SESSION_JSON))
+
+
 # ------------------------------------------------------------------ audit & commands
 
 
@@ -944,6 +1076,10 @@ def sqlite_storage(engine: Engine) -> Storage:
         kit_templates=SqliteKitTemplates(engine),
         kits=SqliteKits(engine),
         reorder_levels=SqliteReorderLevels(engine),
+        projects=SqliteProjects(engine),
+        deployments=SqliteDeployments(engine),
+        sorties=SqliteSorties(engine),
+        survey_sessions=SqliteSurveySessions(engine),
         audit=SqliteAudit(engine),
         commands=SqliteCommandLog(engine),
     )

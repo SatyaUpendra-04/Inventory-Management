@@ -100,15 +100,21 @@ Popup {
             contentWidth: width
             contentHeight: body.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
-            clip: body.implicitHeight > sheet.maxBodyHeight
-            interactive: body.implicitHeight > sheet.maxBodyHeight
+            // Set after layout settles (not bound) so the scroll-bar gutter, which narrows
+            // the body and can make wrapped text taller, never feeds back into itself.
+            property bool overflowing: false
+            function updateOverflow() { overflowing = body.implicitHeight > sheet.maxBodyHeight }
+            Connections { target: sheet; function onMaxBodyHeightChanged() { Qt.callLater(bodyScroll.updateOverflow) } }
+            clip: overflowing
+            interactive: overflowing
             ScrollBar.vertical: ScrollBar { policy: bodyScroll.interactive ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff }
 
             Item {
                 id: body
-                width: bodyScroll.width - (bodyScroll.interactive ? 12 : 0)
+                width: bodyScroll.width - (bodyScroll.overflowing ? 12 : 0)
                 implicitHeight: childrenRect.height
                 height: implicitHeight
+                onImplicitHeightChanged: Qt.callLater(bodyScroll.updateOverflow)
             }
         }
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ims.application.context import Actor, CommandContext
+from ims.application.ledgers import append_movement
 from ims.application.runner import CommandRunner, Outcome, add_once, update_once
 from ims.domain.assets.catalogue import TrackingMode
 from ims.domain.common.errors import NotFound, RuleViolation
@@ -14,7 +15,6 @@ from ims.domain.stock.ledger import (
     MovementKind,
     StockMovement,
     StockPosition,
-    check_new_movement,
     needs_reorder,
     position,
 )
@@ -115,22 +115,14 @@ class StockService:
         movement_id = EntryId(ctx.derive("stock"))
 
         def execute() -> Outcome:
-            item_type = self._s.item_types.get(item_type_id)
-            if item_type is None:
-                raise NotFound("Item type not found.")
-            existing = self._s.stock.for_item_type(item_type_id)
-            done = next((m for m in existing if m.id == movement_id), None)
-            if done is None:
-                movement = StockMovement.build(
-                    id=movement_id, item_type_id=item_type_id, sequence=len(existing) + 1,
-                    location_id=location_id, kind=kind, quantity=quantity,
-                    recorded_at=self._clock.now(), recorded_by=actor.user_id,
-                    command_id=ctx.command_id, project_id=project_id, reason=reason,
-                )  # fmt: skip
-                check_new_movement(existing, movement, item_type)
-                add_once(self._s.stock.append, movement)
-                done = movement
-            return Outcome("stock_movement", str(movement_id), None, done.model_dump(mode="json"))
+            movement = append_movement(
+                self._s, self._clock, ctx, actor, item_type_id=item_type_id,
+                location_id=location_id, kind=kind, quantity=quantity, project_id=project_id,
+                reason=reason,
+            )  # fmt: skip
+            return Outcome(
+                "stock_movement", str(movement_id), None, movement.model_dump(mode="json")
+            )
 
         self._run.run(ctx, f"stock.{kind.value}", execute)
         return movement_id

@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from ims.application.accounts import AccountService
 from ims.application.assets import AssetService
 from ims.application.catalogue import CatalogueService
+from ims.application.deployments import DeploymentService
+from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
+from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
 from ims.application.sites import SiteService
 from ims.application.stock import StockService
@@ -25,4 +28,7 @@ class Services:
     registry: RegistryService
     kits: KitService
     stock: StockService
+    projects: ProjectService
+    deployments: DeploymentService
+    logs: FieldLogService
     clock: Clock

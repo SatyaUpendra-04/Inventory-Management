@@ -11,7 +11,10 @@ from ims.application.accounts import AccountService
 from ims.application.assets import AssetService
 from ims.application.catalogue import CatalogueService
 from ims.application.context import Actor, CommandContext
+from ims.application.deployments import DeploymentService
+from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
+from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
 from ims.application.runner import CommandRunner
 from ims.application.sites import SiteService
@@ -37,6 +40,9 @@ class App:
     sites: SiteService
     registry: RegistryService
     kits: KitService
+    projects: ProjectService
+    deployments: DeploymentService
+    logs: FieldLogService
     accounts: AccountService
     auth: LocalAuthProvider
     files: MemoryFileStore
@@ -73,6 +79,9 @@ def app() -> App:
         sites=SiteService(storage, runner, clock),
         registry=RegistryService(storage, runner, clock, files),
         kits=KitService(storage, runner, clock),
+        projects=ProjectService(storage, runner, clock),
+        deployments=DeploymentService(storage, runner, clock),
+        logs=FieldLogService(storage, runner, clock),
         accounts=AccountService(storage, auth, files, users, runner, clock),
         auth=auth,
         files=files,
