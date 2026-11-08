@@ -4,6 +4,22 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 4 (Asset registry, configuration & compliance)
+- **Equipment** page: every asset with condition, location, usage and document status; search, category filter and a "needs attention" filter
+- **Register and edit assets** with the next free tag suggested (DRN-0001, R12 receivers, tripods ...), home site, warranty and opening flight hours, cycles and landings for second-hand equipment
+- **Asset sheet:** ground, mark limited, return to service, send to maintenance, retire and dispose (each offered only when the rules and your role allow it, with a reason where needed); full status history
+- **Configuration:** fit and remove motors, propellers, landing gear, Helix antenna, camera, logger and telemetry on drone airframes, with each part keeping its own install history
+- **Compliance documents:** UIN (Digital Sky), type certificate, third-party insurance, calibration certificates and others, with scans, issue and expiry dates; missing, expiring (30 days) and expired documents are flagged on the list and the sheet. Only the document kinds that apply to an item are offered
+- **Firmware** version records per asset
+- **Kits:** Drone kit and DGPS set templates; build kits, add and remove equipment, see exactly what is missing, break a kit up
+- **GCP stock** page: banners on hand per site, receive deliveries, write off, stock counts that log the difference as an adjustment, reorder levels with alerts, recent movements
+- **QR asset labels:** 21-up A4 label sheets (63.5 × 38.1 mm) as PDF, with a start position for part-used sheets
+- Database migration 0003 (configuration, documents, firmware, kits, reorder levels)
+
+### Changed — Sprint 4
+- Times on screen are shown in local time (they are stored in UTC)
+- Status pills fall back to the neutral style for unknown states instead of drawing nothing
+
 ### Added — Sprint 3 (Accounts, users & sites)
 - **First-run setup** for the first administrator, with a live password checklist
 - **Sign-in** against local accounts: Argon2id password hashes, identical messages for unknown users and wrong passwords, escalating lockout stored with the account (1 → 30 minutes), sign-ins audited

@@ -1,5 +1,7 @@
 """Builds the QML engine with the theme, icons, services and view-models wired in."""
 
+# ``Services`` lives in ``ims.ui.app_services``; it is re-exported here for callers.
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,33 +11,23 @@ from PySide6.QtCore import QObject, QSettings, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
-from ims.application.accounts import AccountService
-from ims.application.sites import SiteService
-from ims.application.users import UserService
-from ims.ports.clock import Clock
+from ims.ui.app_services import Services
 from ims.ui.images import FileImageProvider
 from ims.ui.models.sample_equipment import SampleEquipmentModel, SortableModel
 from ims.ui.tasks import TaskQueue
 from ims.ui.theme.icons import IconProvider
 from ims.ui.theme.manager import ThemeManager
+from ims.ui.viewmodels.equipment import EquipmentViewModel
+from ims.ui.viewmodels.kits import KitsViewModel
 from ims.ui.viewmodels.people import PeopleViewModel
 from ims.ui.viewmodels.session import SessionViewModel
 from ims.ui.viewmodels.shell import ShellViewModel
 from ims.ui.viewmodels.sites import SitesViewModel
+from ims.ui.viewmodels.stock import StockViewModel
 from ims.ui.viewmodels.toasts import ToastService
 
 QML_DIR = Path(__file__).resolve().parent / "qml"
 MAIN_QML = QML_DIR / "Main.qml"
-
-
-@dataclass(frozen=True, slots=True)
-class Services:
-    """Application services the UI talks to (never storage or adapters directly)."""
-
-    accounts: AccountService
-    users: UserService
-    sites: SiteService
-    clock: Clock
 
 
 @dataclass
@@ -48,6 +40,9 @@ class UiContext:
     session: SessionViewModel
     people: PeopleViewModel
     sites: SitesViewModel
+    equipment: EquipmentViewModel
+    kits: KitsViewModel
+    stock: StockViewModel
     sample_table: SortableModel
 
 
@@ -77,12 +72,16 @@ def create_engine(
         session, services.users, services.accounts, services.clock, tasks, engine
     )
     sites = SitesViewModel(session, services.sites, tasks, engine)
+    equipment = EquipmentViewModel(session, services, tasks, engine)
+    kits = KitsViewModel(session, services, tasks, engine)
+    stock = StockViewModel(session, services, tasks, engine)
     sample_table = SortableModel(SampleEquipmentModel(engine), engine)
 
     session.signedIn.connect(lambda: shell.set_permissions(session.permission_codes()))
     session.signedOut.connect(lambda: shell.set_permissions(()))
     people.saved.connect(lambda message: toasts.show("success", message, ""))
-    sites.saved.connect(lambda message: toasts.show("success", message, ""))
+    for model in (sites, equipment, kits, stock):
+        model.saved.connect(lambda message: toasts.show("success", message, ""))
 
     context = engine.rootContext()
     for name, value in {
@@ -93,6 +92,9 @@ def create_engine(
         "Session": session,
         "People": people,
         "Sites": sites,
+        "Equipment": equipment,
+        "Kits": kits,
+        "Stock": stock,
         "SampleTable": sample_table,
         "AppVersion": version,
         "AppEnvironment": environment,
@@ -100,4 +102,20 @@ def create_engine(
         context.setContextProperty(name, value)
 
     engine.load(QUrl.fromLocalFile(str(root_qml)))
-    return UiContext(engine, theme, shell, toasts, tasks, session, people, sites, sample_table)
+    return UiContext(
+        engine,
+        theme,
+        shell,
+        toasts,
+        tasks,
+        session,
+        people,
+        sites,
+        equipment,
+        kits,
+        stock,
+        sample_table,
+    )
+
+
+__all__ = ["Services", "UiContext", "create_engine"]

@@ -12,8 +12,13 @@ from ims.adapters.files import MemoryFileStore
 from ims.adapters.local_auth import LocalAuthProvider, MemoryCredentialStore, fast_hasher
 from ims.adapters.memory import memory_storage
 from ims.application.accounts import AccountService
+from ims.application.assets import AssetService
+from ims.application.catalogue import CatalogueService
+from ims.application.kits import KitService
+from ims.application.registry import RegistryService
 from ims.application.runner import CommandRunner
 from ims.application.sites import SiteService
+from ims.application.stock import StockService
 from ims.application.users import UserService
 from ims.ui.app import Services, UiContext, create_engine
 from ims.ui.fonts import ensure_windows_ui_fonts
@@ -42,9 +47,18 @@ def services() -> Services:
     runner = CommandRunner(storage, clock)
     users = UserService(storage, runner, clock)
     auth = LocalAuthProvider(MemoryCredentialStore(), fast_hasher())
-    accounts = AccountService(storage, auth, MemoryFileStore(), users, runner, clock)
+    files = MemoryFileStore()
+    accounts = AccountService(storage, auth, files, users, runner, clock)
     return Services(
-        accounts=accounts, users=users, sites=SiteService(storage, runner, clock), clock=clock
+        accounts=accounts,
+        users=users,
+        sites=SiteService(storage, runner, clock),
+        catalogue=CatalogueService(storage, runner),
+        assets=AssetService(storage, runner, clock),
+        registry=RegistryService(storage, runner, clock, files),
+        kits=KitService(storage, runner, clock),
+        stock=StockService(storage, runner, clock),
+        clock=clock,
     )
 
 

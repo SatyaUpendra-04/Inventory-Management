@@ -97,7 +97,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** an Admin can onboard Pilots and Surveyors end to end.
 **Result:** first-run setup, sign-in with stored escalating lockout, temporary passwords with forced change, required profile picture, People (add, edit, reset, unlock, deactivate, remove, licence copies), Sites, My profile, role-based navigation, background task queue (ADR-0006). 372 tests, 95% coverage; domain 99%.
 
-### Sprint 4 — Asset registry, configuration & compliance
+### Sprint 4 — Asset registry, configuration & compliance ✅ (done 2026-11-08)
 - Asset catalogue, filters, add/edit/retire, asset detail with full history
 - **Configuration:** install/remove components on drones (motors, propellers, landing gear, Helix GPS antenna, camera, logger), with time-in-service per component
 - Kit templates and kits: "Drone kit" and "DGPS set" (base + rover receivers, controller, tripod, tribrach, bipod, batteries, chargers)
@@ -107,6 +107,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - QR-code asset labels
 
 **Done when:** the whole fleet is registered with components, documents and expiries.
+**Result:** Equipment page (search, category and needs-attention filters, register and edit with suggested tags and opening meter readings), asset sheet (status actions limited by role, fitted parts, documents with scans and expiry, firmware, status history), kits checked against the Drone kit and DGPS set templates, GCP stock page (receive, write off, stock count with automatic adjustment, reorder levels), 21-up A4 QR label sheets as PDF. Migration 0003. 427 tests, 93% coverage; domain 97%+; zero QML warnings.
 
 ### Sprint 5 — Projects, deployments & field logs
 - Projects: code, site, dates, chief pilot, surveyor, status
@@ -224,7 +225,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | 1 | 2 | Domain core & storage contract ✅ |
 | 2 | 2 | Design system & app shell ✅ |
 | 3 | 2 | Accounts, users, sites ✅ |
-| 4 | 2 | Asset registry, configuration, compliance |
+| 4 | 2 | Asset registry, configuration, compliance ✅ |
 | 5 | 2 | Projects, deployments, field logs |
 | 6 | 2 | Reservations |
 | 7 | 2 | Airworthiness & maintenance |

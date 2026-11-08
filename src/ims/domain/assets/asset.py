@@ -9,7 +9,7 @@ from pydantic import Field, field_validator
 
 from ims.domain.assets.catalogue import ItemType, TrackingMode
 from ims.domain.common.errors import RuleViolation
-from ims.domain.common.ids import AssetId, ItemTypeId
+from ims.domain.common.ids import AssetId, ItemTypeId, LocationId
 from ims.domain.common.model import UtcDateTime, VersionedRecord
 
 _ASSET_TAG = re.compile(r"^[A-Z]{2,4}-[A-Z0-9]{3,12}$")
@@ -27,6 +27,7 @@ class Asset(VersionedRecord):
     model: str | None = Field(default=None, max_length=60)
     acquired_on: date | None = None
     warranty_until: date | None = None
+    home_site_id: LocationId | None = None  # where it is normally kept
     notes: str = Field(default="", max_length=2000)
     deleted_at: UtcDateTime | None = None
 

@@ -16,14 +16,28 @@ from ims.adapters.local_auth import Credential
 from ims.adapters.sqlite import schema as s
 from ims.domain.assets.asset import Asset
 from ims.domain.assets.catalogue import ItemType, Meter
+from ims.domain.assets.configuration import ConfigEvent
+from ims.domain.assets.documents import AssetDocument
+from ims.domain.assets.firmware import FirmwareRecord
 from ims.domain.assets.status import AssetStatus, StatusEvent
 from ims.domain.audit import AuditEntry
 from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
-from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, LocationId, UserId
+from ims.domain.common.ids import (
+    AssetId,
+    CommandId,
+    DocumentId,
+    ItemTypeId,
+    KitId,
+    KitTemplateId,
+    LocationId,
+    UserId,
+)
 from ims.domain.identity.roles import Role
 from ims.domain.identity.user import PilotLicence, User
+from ims.domain.kits import Kit, KitTemplate
 from ims.domain.sites.site import Site, SiteKind, SiteStatus
 from ims.domain.stock.ledger import StockMovement
+from ims.domain.stock.reorder import ReorderLevel
 from ims.domain.usage.ledger import UsageEntry
 from ims.ports.repository import CommandRecord, Storage
 
@@ -390,6 +404,7 @@ def _asset_row(a: Asset) -> dict[str, Any]:
         "model": a.model,
         "acquired_on": _d(a.acquired_on),
         "warranty_until": _d(a.warranty_until),
+        "home_site_id": _id(a.home_site_id),
         "notes": a.notes,
         "deleted_at": _ts(a.deleted_at),
     }
@@ -406,6 +421,7 @@ def _asset(r: Row[Any]) -> Asset:
         model=r.model,
         acquired_on=_parse_d(r.acquired_on),
         warranty_until=_parse_d(r.warranty_until),
+        home_site_id=None if r.home_site_id is None else LocationId(uuid.UUID(r.home_site_id)),
         notes=r.notes,
         deleted_at=_parse_ts(r.deleted_at),
     )
@@ -574,6 +590,263 @@ class SqliteStock(_Base):
         self._append_sequenced(_stock_row(movement), "item_type_id")
 
 
+# ------------------------------------------------------------------ configuration & documents
+
+
+def _config_row(e: ConfigEvent) -> dict[str, Any]:
+    return {
+        "id": str(e.id),
+        "component_id": str(e.component_id),
+        "sequence": e.sequence,
+        "change": e.change.value,
+        "parent_id": str(e.parent_id),
+        "position": e.position,
+        "recorded_at": _ts(e.recorded_at),
+        "recorded_by": str(e.recorded_by),
+        "command_id": str(e.command_id),
+        "note": e.note,
+    }
+
+
+def _config(r: Row[Any]) -> ConfigEvent:
+    data = dict(r._mapping)
+    data["recorded_at"] = _parse_ts(r.recorded_at)
+    return ConfigEvent.model_validate(data)
+
+
+class SqliteConfiguration(_Base):
+    table, label = s.configuration_events, "configuration event"
+
+    def for_component(self, component_id: AssetId) -> list[ConfigEvent]:
+        t = s.configuration_events
+        return self._many(
+            select(t).where(t.c.component_id == str(component_id)).order_by(t.c.sequence), _config
+        )
+
+    def for_parent(self, parent_id: AssetId) -> list[ConfigEvent]:
+        t = s.configuration_events
+        query = (
+            select(t)
+            .where(t.c.parent_id == str(parent_id))
+            .order_by(t.c.recorded_at, t.c.component_id, t.c.sequence)
+        )
+        return self._many(query, _config)
+
+    def append(self, event: ConfigEvent) -> None:
+        self._append_sequenced(_config_row(event), "component_id")
+
+
+def _document_row(d: AssetDocument) -> dict[str, Any]:
+    return {
+        "id": str(d.id),
+        "version": d.version,
+        "asset_id": str(d.asset_id),
+        "kind": d.kind.value,
+        "reference": d.reference,
+        "issuer": d.issuer,
+        "issued_on": _d(d.issued_on),
+        "valid_until": _d(d.valid_until),
+        "file": d.file,
+        "notes": d.notes,
+        "deleted_at": _ts(d.deleted_at),
+    }
+
+
+def _document(r: Row[Any]) -> AssetDocument:
+    data = dict(r._mapping)
+    data["deleted_at"] = _parse_ts(r.deleted_at)
+    return AssetDocument.model_validate(data)
+
+
+class SqliteDocuments(_Base):
+    table, label = s.asset_documents, "document"
+
+    def get(self, document_id: DocumentId) -> AssetDocument | None:
+        return self._one(s.asset_documents.c.id == str(document_id), _document)
+
+    def for_asset(self, asset_id: AssetId, *, include_deleted: bool = False) -> list[AssetDocument]:
+        t = s.asset_documents
+        query = select(t).where(t.c.asset_id == str(asset_id)).order_by(t.c.kind, t.c.id)
+        if not include_deleted:
+            query = query.where(t.c.deleted_at.is_(None))
+        return self._many(query, _document)
+
+    def list(self) -> list[AssetDocument]:
+        t = s.asset_documents
+        query = select(t).where(t.c.deleted_at.is_(None)).order_by(t.c.asset_id, t.c.kind, t.c.id)
+        return self._many(query, _document)
+
+    def add(self, document: AssetDocument) -> None:
+        self._insert(_document_row(document))
+
+    def update(self, document: AssetDocument) -> None:
+        self._update_versioned(_document_row(document))
+
+
+def _firmware_row(f: FirmwareRecord) -> dict[str, Any]:
+    return {
+        "id": str(f.id),
+        "asset_id": str(f.asset_id),
+        "sequence": f.sequence,
+        "version": f.version,
+        "installed_on": _d(f.installed_on),
+        "recorded_at": _ts(f.recorded_at),
+        "recorded_by": str(f.recorded_by),
+        "command_id": str(f.command_id),
+        "note": f.note,
+    }
+
+
+def _firmware(r: Row[Any]) -> FirmwareRecord:
+    data = dict(r._mapping)
+    data["recorded_at"] = _parse_ts(r.recorded_at)
+    return FirmwareRecord.model_validate(data)
+
+
+class SqliteFirmware(_Base):
+    table, label = s.firmware_records, "firmware record"
+
+    def for_asset(self, asset_id: AssetId) -> list[FirmwareRecord]:
+        t = s.firmware_records
+        return self._many(
+            select(t).where(t.c.asset_id == str(asset_id)).order_by(t.c.sequence), _firmware
+        )
+
+    def append(self, record: FirmwareRecord) -> None:
+        self._append_sequenced(_firmware_row(record), "asset_id")
+
+
+# ------------------------------------------------------------------ kits & reorder levels
+
+
+def _template_row(t: KitTemplate) -> dict[str, Any]:
+    return {
+        "id": str(t.id),
+        "version": t.version,
+        "name": t.name,
+        "name_key": t.name.lower(),
+        "discipline": t.discipline.value,
+        "lines": json.dumps(
+            [
+                {"item_type_id": str(line.item_type_id), "quantity": line.quantity}
+                for line in t.lines
+            ]
+        ),
+        "notes": t.notes,
+        "is_active": t.is_active,
+    }
+
+
+def _template(r: Row[Any]) -> KitTemplate:
+    data = dict(r._mapping)
+    data.pop("name_key")
+    data["lines"] = tuple(json.loads(r.lines))
+    return KitTemplate.model_validate(data)
+
+
+class SqliteKitTemplates(_Base):
+    table, label = s.kit_templates, "kit template"
+
+    def get(self, template_id: KitTemplateId) -> KitTemplate | None:
+        return self._one(s.kit_templates.c.id == str(template_id), _template)
+
+    def list(self, *, include_inactive: bool = False) -> list[KitTemplate]:
+        t = s.kit_templates
+        query = select(t).order_by(t.c.name)
+        if not include_inactive:
+            query = query.where(t.c.is_active.is_(True))
+        return self._many(query, _template)
+
+    def add(self, template: KitTemplate) -> None:
+        self._insert(_template_row(template))
+
+    def update(self, template: KitTemplate) -> None:
+        self._update_versioned(_template_row(template))
+
+
+def _kit_row(k: Kit) -> dict[str, Any]:
+    return {
+        "id": str(k.id),
+        "version": k.version,
+        "code": k.code,
+        "name": k.name,
+        "template_id": _id(k.template_id),
+        "members": json.dumps([str(m) for m in k.members]),
+        "home_site_id": _id(k.home_site_id),
+        "notes": k.notes,
+        "deleted_at": _ts(k.deleted_at),
+    }
+
+
+def _kit(r: Row[Any]) -> Kit:
+    data = dict(r._mapping)
+    data["members"] = tuple(json.loads(r.members))
+    data["deleted_at"] = _parse_ts(r.deleted_at)
+    return Kit.model_validate(data)
+
+
+class SqliteKits(_Base):
+    table, label = s.kits, "kit"
+
+    def get(self, kit_id: KitId) -> Kit | None:
+        return self._one(s.kits.c.id == str(kit_id), _kit)
+
+    def find_by_code(self, code: str) -> Kit | None:
+        normalised = code.strip().upper()
+        if not normalised.startswith("KIT-"):
+            normalised = f"KIT-{normalised}"
+        return self._one(s.kits.c.code == normalised, _kit)
+
+    def find_by_member(self, asset_id: AssetId) -> Kit | None:
+        # Kits are few; membership is stored as a list, as it will be on SharePoint.
+        return next((k for k in self.list() if asset_id in k.members), None)
+
+    def list(self, *, include_deleted: bool = False) -> list[Kit]:
+        query = select(s.kits).order_by(s.kits.c.code)
+        if not include_deleted:
+            query = query.where(s.kits.c.deleted_at.is_(None))
+        return self._many(query, _kit)
+
+    def add(self, kit: Kit) -> None:
+        self._insert(_kit_row(kit))
+
+    def update(self, kit: Kit) -> None:
+        self._update_versioned(_kit_row(kit))
+
+
+def _reorder_row(level: ReorderLevel) -> dict[str, Any]:
+    return {
+        "id": str(level.id),
+        "version": level.version,
+        "item_type_id": str(level.item_type_id),
+        "location_id": str(level.location_id),
+        "level": level.level,
+    }
+
+
+class SqliteReorderLevels(_Base):
+    table, label = s.reorder_levels, "reorder level"
+
+    def get(self, level_id: uuid.UUID) -> ReorderLevel | None:
+        return self._one(
+            s.reorder_levels.c.id == str(level_id),
+            lambda r: ReorderLevel.model_validate(dict(r._mapping)),
+        )
+
+    def list(self) -> list[ReorderLevel]:
+        t = s.reorder_levels
+        return self._many(
+            select(t).order_by(t.c.item_type_id, t.c.location_id),
+            lambda r: ReorderLevel.model_validate(dict(r._mapping)),
+        )
+
+    def add(self, level: ReorderLevel) -> None:
+        self._insert(_reorder_row(level))
+
+    def update(self, level: ReorderLevel) -> None:
+        self._update_versioned(_reorder_row(level))
+
+
 # ------------------------------------------------------------------ audit & commands
 
 
@@ -665,6 +938,12 @@ def sqlite_storage(engine: Engine) -> Storage:
         status_events=SqliteStatusEvents(engine),
         usage=SqliteUsage(engine),
         stock=SqliteStock(engine),
+        configuration=SqliteConfiguration(engine),
+        documents=SqliteDocuments(engine),
+        firmware=SqliteFirmware(engine),
+        kit_templates=SqliteKitTemplates(engine),
+        kits=SqliteKits(engine),
+        reorder_levels=SqliteReorderLevels(engine),
         audit=SqliteAudit(engine),
         commands=SqliteCommandLog(engine),
     )

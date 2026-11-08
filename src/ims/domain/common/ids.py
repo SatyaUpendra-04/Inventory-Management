@@ -19,6 +19,9 @@ LocationId = NewType("LocationId", uuid.UUID)
 ProjectId = NewType("ProjectId", uuid.UUID)
 CommandId = NewType("CommandId", uuid.UUID)
 EntryId = NewType("EntryId", uuid.UUID)
+DocumentId = NewType("DocumentId", uuid.UUID)
+KitId = NewType("KitId", uuid.UUID)
+KitTemplateId = NewType("KitTemplateId", uuid.UUID)
 
 _VERSION_7 = 0x7
 _VARIANT_RFC = 0b10

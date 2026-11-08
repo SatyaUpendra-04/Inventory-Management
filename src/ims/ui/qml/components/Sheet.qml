@@ -10,6 +10,7 @@ Popup {
     property string subtitle: ""
     default property alias content: body.data
     property alias actions: actionRow.data
+    property real maxBodyHeight: parent ? parent.height - 220 : 600
 
     parent: Overlay.overlay
     modal: true
@@ -91,11 +92,24 @@ Popup {
             }
         }
 
-        Item {
-            id: body
+        // Content scrolls when it is taller than the window allows.
+        Flickable {
+            id: bodyScroll
             width: parent.width
-            implicitHeight: childrenRect.height
-            height: implicitHeight
+            height: Math.min(body.implicitHeight, sheet.maxBodyHeight)
+            contentWidth: width
+            contentHeight: body.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            clip: body.implicitHeight > sheet.maxBodyHeight
+            interactive: body.implicitHeight > sheet.maxBodyHeight
+            ScrollBar.vertical: ScrollBar { policy: bodyScroll.interactive ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff }
+
+            Item {
+                id: body
+                width: bodyScroll.width - (bodyScroll.interactive ? 12 : 0)
+                implicitHeight: childrenRect.height
+                height: implicitHeight
+            }
         }
 
         Row {

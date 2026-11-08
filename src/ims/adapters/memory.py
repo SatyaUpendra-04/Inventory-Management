@@ -6,18 +6,33 @@ with in the contract tests. Not for production: nothing is persisted.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable, Hashable
 from typing import Protocol
 
 from ims.domain.assets.asset import Asset
 from ims.domain.assets.catalogue import ItemType
+from ims.domain.assets.configuration import ConfigEvent
+from ims.domain.assets.documents import AssetDocument
+from ims.domain.assets.firmware import FirmwareRecord
 from ims.domain.assets.status import StatusEvent
 from ims.domain.audit import AuditEntry
 from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
-from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, LocationId, UserId
+from ims.domain.common.ids import (
+    AssetId,
+    CommandId,
+    DocumentId,
+    ItemTypeId,
+    KitId,
+    KitTemplateId,
+    LocationId,
+    UserId,
+)
 from ims.domain.identity.user import User
+from ims.domain.kits import Kit, KitTemplate
 from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
+from ims.domain.stock.reorder import ReorderLevel
 from ims.domain.usage.ledger import UsageEntry
 from ims.ports.repository import CommandRecord, Storage
 
@@ -244,6 +259,130 @@ class MemoryStock:
         self._s.append(movement, movement.id, movement.sequence)
 
 
+class MemoryConfiguration:
+    def __init__(self) -> None:
+        self._s: _Stream[ConfigEvent] = _Stream(lambda e: e.component_id)
+
+    def for_component(self, component_id: AssetId) -> list[ConfigEvent]:
+        return self._s.get(component_id)
+
+    def for_parent(self, parent_id: AssetId) -> list[ConfigEvent]:
+        events = [
+            e for stream in self._s.streams.values() for e in stream if e.parent_id == parent_id
+        ]
+        return sorted(events, key=lambda e: (e.recorded_at, e.component_id, e.sequence))
+
+    def append(self, event: ConfigEvent) -> None:
+        self._s.append(event, event.id, event.sequence)
+
+
+class MemoryDocuments:
+    def __init__(self) -> None:
+        self._t: _Table[AssetDocument] = _Table("document", {})
+
+    def get(self, document_id: DocumentId) -> AssetDocument | None:
+        return self._t.rows.get(document_id)
+
+    def for_asset(self, asset_id: AssetId, *, include_deleted: bool = False) -> list[AssetDocument]:
+        docs = [
+            d
+            for d in self._t.rows.values()
+            if d.asset_id == asset_id and (include_deleted or not d.is_deleted)
+        ]
+        return sorted(docs, key=lambda d: (d.kind.value, str(d.id)))
+
+    def list(self) -> list[AssetDocument]:
+        return sorted(
+            (d for d in self._t.rows.values() if not d.is_deleted),
+            key=lambda d: (str(d.asset_id), d.kind.value, str(d.id)),
+        )
+
+    def add(self, document: AssetDocument) -> None:
+        self._t.add(document)
+
+    def update(self, document: AssetDocument) -> None:
+        self._t.update(document)
+
+
+class MemoryFirmware:
+    def __init__(self) -> None:
+        self._s: _Stream[FirmwareRecord] = _Stream(lambda r: r.asset_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[FirmwareRecord]:
+        return self._s.get(asset_id)
+
+    def append(self, record: FirmwareRecord) -> None:
+        self._s.append(record, record.id, record.sequence)
+
+
+class MemoryKitTemplates:
+    def __init__(self) -> None:
+        self._t: _Table[KitTemplate] = _Table("kit template", {"name": lambda t: t.name.lower()})
+
+    def get(self, template_id: KitTemplateId) -> KitTemplate | None:
+        return self._t.rows.get(template_id)
+
+    def list(self, *, include_inactive: bool = False) -> list[KitTemplate]:
+        rows = [t for t in self._t.rows.values() if include_inactive or t.is_active]
+        return sorted(rows, key=lambda t: t.name)
+
+    def add(self, template: KitTemplate) -> None:
+        self._t.add(template)
+
+    def update(self, template: KitTemplate) -> None:
+        self._t.update(template)
+
+
+class MemoryKits:
+    def __init__(self) -> None:
+        self._t: _Table[Kit] = _Table("kit", {"code": lambda k: k.code})
+
+    def get(self, kit_id: KitId) -> Kit | None:
+        return self._t.rows.get(kit_id)
+
+    def find_by_code(self, code: str) -> Kit | None:
+        normalised = code.strip().upper()
+        if not normalised.startswith("KIT-"):
+            normalised = f"KIT-{normalised}"
+        return self._t.find("code", normalised)
+
+    def find_by_member(self, asset_id: AssetId) -> Kit | None:
+        return next(
+            (k for k in self._t.rows.values() if not k.is_deleted and asset_id in k.members), None
+        )
+
+    def list(self, *, include_deleted: bool = False) -> list[Kit]:
+        kits = [k for k in self._t.rows.values() if include_deleted or not k.is_deleted]
+        return sorted(kits, key=lambda k: k.code)
+
+    def add(self, kit: Kit) -> None:
+        self._t.add(kit)
+
+    def update(self, kit: Kit) -> None:
+        self._t.update(kit)
+
+
+class MemoryReorderLevels:
+    def __init__(self) -> None:
+        self._t: _Table[ReorderLevel] = _Table(
+            "reorder level", {"item_type_and_site": lambda r: (r.item_type_id, r.location_id)}
+        )
+
+    def get(self, level_id: uuid.UUID) -> ReorderLevel | None:
+        return self._t.rows.get(level_id)
+
+    def list(self) -> list[ReorderLevel]:
+        return sorted(
+            self._t.rows.values(), key=lambda r: (str(r.item_type_id), str(r.location_id))
+        )
+
+    def add(self, level: ReorderLevel) -> None:
+        self._t.add(level)
+
+    def update(self, level: ReorderLevel) -> None:
+        self._t.update(level)
+
+
 class MemoryAudit:
     def __init__(self) -> None:
         self._entries: dict[Hashable, AuditEntry] = {}
@@ -285,6 +424,12 @@ def memory_storage() -> Storage:
         status_events=MemoryStatusEvents(),
         usage=MemoryUsage(),
         stock=MemoryStock(),
+        configuration=MemoryConfiguration(),
+        documents=MemoryDocuments(),
+        firmware=MemoryFirmware(),
+        kit_templates=MemoryKitTemplates(),
+        kits=MemoryKits(),
+        reorder_levels=MemoryReorderLevels(),
         audit=MemoryAudit(),
         commands=MemoryCommandLog(),
     )

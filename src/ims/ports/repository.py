@@ -17,18 +17,33 @@ Rules every adapter must follow (verified by ``tests/contract``):
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
 from ims.domain.assets.asset import Asset
 from ims.domain.assets.catalogue import ItemType
+from ims.domain.assets.configuration import ConfigEvent
+from ims.domain.assets.documents import AssetDocument
+from ims.domain.assets.firmware import FirmwareRecord
 from ims.domain.assets.status import StatusEvent
 from ims.domain.audit import AuditEntry
-from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, LocationId, UserId
+from ims.domain.common.ids import (
+    AssetId,
+    CommandId,
+    DocumentId,
+    ItemTypeId,
+    KitId,
+    KitTemplateId,
+    LocationId,
+    UserId,
+)
 from ims.domain.common.model import UtcDateTime, ValueModel
 from ims.domain.identity.user import User
+from ims.domain.kits import Kit, KitTemplate
 from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
+from ims.domain.stock.reorder import ReorderLevel
 from ims.domain.usage.ledger import UsageEntry
 
 
@@ -85,6 +100,59 @@ class StockRepository(Protocol):
     def append(self, movement: StockMovement) -> None: ...
 
 
+class ConfigurationRepository(Protocol):
+    def for_component(self, component_id: AssetId) -> list[ConfigEvent]: ...
+    def for_parent(self, parent_id: AssetId) -> list[ConfigEvent]:
+        """Every event naming ``parent_id`` (installs and removals), oldest first."""
+        ...
+
+    def append(self, event: ConfigEvent) -> None: ...
+
+
+class DocumentRepository(Protocol):
+    def get(self, document_id: DocumentId) -> AssetDocument | None: ...
+    def for_asset(
+        self, asset_id: AssetId, *, include_deleted: bool = False
+    ) -> list[AssetDocument]: ...
+    def list(self) -> list[AssetDocument]:
+        """All current documents (for compliance alerts)."""
+        ...
+
+    def add(self, document: AssetDocument) -> None: ...
+    def update(self, document: AssetDocument) -> None: ...
+
+
+class FirmwareRepository(Protocol):
+    def for_asset(self, asset_id: AssetId) -> list[FirmwareRecord]: ...
+    def append(self, record: FirmwareRecord) -> None: ...
+
+
+class KitTemplateRepository(Protocol):
+    def get(self, template_id: KitTemplateId) -> KitTemplate | None: ...
+    def list(self, *, include_inactive: bool = False) -> list[KitTemplate]: ...
+    def add(self, template: KitTemplate) -> None: ...
+    def update(self, template: KitTemplate) -> None: ...
+
+
+class KitRepository(Protocol):
+    def get(self, kit_id: KitId) -> Kit | None: ...
+    def find_by_code(self, code: str) -> Kit | None: ...
+    def find_by_member(self, asset_id: AssetId) -> Kit | None:
+        """The current (not deleted) kit containing ``asset_id``, if any."""
+        ...
+
+    def list(self, *, include_deleted: bool = False) -> list[Kit]: ...
+    def add(self, kit: Kit) -> None: ...
+    def update(self, kit: Kit) -> None: ...
+
+
+class ReorderLevelRepository(Protocol):
+    def get(self, level_id: uuid.UUID) -> ReorderLevel | None: ...
+    def list(self) -> list[ReorderLevel]: ...
+    def add(self, level: ReorderLevel) -> None: ...
+    def update(self, level: ReorderLevel) -> None: ...
+
+
 class AuditRepository(Protocol):
     def append(self, entry: AuditEntry) -> None: ...
     def for_entity(self, entity: str, entity_id: str) -> list[AuditEntry]: ...
@@ -117,5 +185,11 @@ class Storage:
     status_events: StatusEventRepository
     usage: UsageRepository
     stock: StockRepository
+    configuration: ConfigurationRepository
+    documents: DocumentRepository
+    firmware: FirmwareRepository
+    kit_templates: KitTemplateRepository
+    kits: KitRepository
+    reorder_levels: ReorderLevelRepository
     audit: AuditRepository
     commands: CommandLog

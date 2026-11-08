@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -95,3 +95,8 @@ def initials(full_name: str) -> str:
     if len(parts) == 1:
         return parts[0][:2].upper()
     return (parts[0][0] + parts[-1][0]).upper()
+
+
+def local_time(moment: datetime) -> str:
+    """A recorded UTC instant as the user's local date and time, e.g. ``08 Nov 2026 10:35``."""
+    return moment.astimezone().strftime("%d %b %Y %H:%M")

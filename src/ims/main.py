@@ -20,8 +20,13 @@ from ims.adapters.sqlite import DB_FILE_NAME, open_sqlite_storage
 from ims.adapters.sqlite.repositories import SqliteCredentialStore
 from ims.adapters.system_clock import SystemClock
 from ims.application.accounts import AccountService
+from ims.application.assets import AssetService
+from ims.application.catalogue import CatalogueService
+from ims.application.kits import KitService
+from ims.application.registry import RegistryService
 from ims.application.runner import CommandRunner
 from ims.application.sites import SiteService
+from ims.application.stock import StockService
 from ims.application.users import UserService
 from ims.logging_setup import configure_logging, log_uncaught_exception, shutdown_logging
 from ims.settings import Backend, Settings
@@ -37,16 +42,20 @@ def build_services(data_dir: Path) -> tuple[Services, Callable[[], None]]:
     clock = SystemClock()
     runner = CommandRunner(storage, clock)
     users = UserService(storage, runner, clock)
+    files = LocalFileStore(data_dir / "files")
     accounts = AccountService(
-        storage,
-        LocalAuthProvider(SqliteCredentialStore(engine)),
-        LocalFileStore(data_dir / "files"),
-        users,
-        runner,
-        clock,
+        storage, LocalAuthProvider(SqliteCredentialStore(engine)), files, users, runner, clock
     )
     services = Services(
-        accounts=accounts, users=users, sites=SiteService(storage, runner, clock), clock=clock
+        accounts=accounts,
+        users=users,
+        sites=SiteService(storage, runner, clock),
+        catalogue=CatalogueService(storage, runner),
+        assets=AssetService(storage, runner, clock),
+        registry=RegistryService(storage, runner, clock, files),
+        kits=KitService(storage, runner, clock),
+        stock=StockService(storage, runner, clock),
+        clock=clock,
     )
     return services, engine.dispose
 

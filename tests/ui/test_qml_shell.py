@@ -110,7 +110,7 @@ def test_screenshots_of_key_pages(ui: UiContext, mode: str, high_contrast: bool)
     settle(ui, 300)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     suffix = f"{mode}{'-hc' if high_contrast else ''}"
-    for key in ("gallery", "settings", "people", "sites", "profile", "equipment"):
+    for key in ("gallery", "settings", "people", "sites", "profile", "equipment", "stock"):
         ui.shell.navigate(key)
         settle(ui, 600)
         image = window_of(ui).grabWindow()

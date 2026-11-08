@@ -20,14 +20,23 @@ from ims.domain.assets.status import (
     required_permissions,
 )
 from ims.domain.common.errors import ConflictError, NotFound, RuleViolation
-from ims.domain.common.ids import AssetId, EntryId, ItemTypeId
+from ims.domain.common.ids import AssetId, EntryId, ItemTypeId, LocationId
 from ims.domain.identity.roles import Permission
 from ims.domain.usage.ledger import UsageEntry, UsageSource, check_new_entry
 from ims.ports.clock import Clock
 from ims.ports.repository import Storage
 
 ASSET_EDITABLE_FIELDS = frozenset(
-    {"asset_tag", "serial_number", "make", "model", "acquired_on", "warranty_until", "notes"}
+    {
+        "asset_tag",
+        "serial_number",
+        "make",
+        "model",
+        "acquired_on",
+        "warranty_until",
+        "home_site_id",
+        "notes",
+    }
 )
 
 
@@ -51,6 +60,18 @@ class AssetService:
         actor.require(Permission.ASSET_VIEW)
         return replay(self._s.status_events.for_asset(asset_id))
 
+    def suggest_tag(self, actor: Actor, item_type_id: ItemTypeId) -> str:
+        """The next free tag for an item type, e.g. ``DRN-0004``."""
+        actor.require(Permission.ASSET_VIEW)
+        item_type = self._require_type(item_type_id)
+        prefix = item_type.tag_prefix or "AST"
+        numbers = [
+            int(a.asset_tag.split("-", 1)[1])
+            for a in self._s.assets.list(include_deleted=True)
+            if a.asset_tag.startswith(f"{prefix}-") and a.asset_tag.split("-", 1)[1].isdigit()
+        ]
+        return f"{prefix}-{max(numbers, default=0) + 1:04d}"
+
     def history(self, actor: Actor, asset_id: AssetId) -> list[StatusEvent]:
         actor.require(Permission.ASSET_VIEW)
         return self._s.status_events.for_asset(asset_id)
@@ -69,6 +90,7 @@ class AssetService:
         acquired_on: date | None = None,
         warranty_until: date | None = None,
         notes: str = "",
+        home_site_id: LocationId | None = None,
         opening_balances: Mapping[Meter, Decimal] | None = None,
     ) -> AssetId:
         """Registers a unit, with optional opening meter readings (e.g. hours already flown)."""
@@ -80,7 +102,7 @@ class AssetService:
             asset = Asset.build(
                 id=ctx.derive("asset"), item_type_id=item_type_id, asset_tag=asset_tag,
                 serial_number=serial_number, make=make, model=model, acquired_on=acquired_on,
-                warranty_until=warranty_until, notes=notes,
+                warranty_until=warranty_until, home_site_id=home_site_id, notes=notes,
             )  # fmt: skip
             check_asset_against_type(asset, item_type)
             if self._s.assets.get(asset.id) is None:
