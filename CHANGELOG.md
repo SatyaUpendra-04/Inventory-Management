@@ -4,6 +4,30 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 3 (Accounts, users & sites)
+- **First-run setup** for the first administrator, with a live password checklist
+- **Sign-in** against local accounts: Argon2id password hashes, identical messages for unknown users and wrong passwords, escalating lockout stored with the account (1 → 30 minutes), sign-ins audited
+- **Temporary passwords** issued by administrators (shown once, with Copy), forced change at first sign-in, admin reset and unlock
+- **Profile pictures** required before first use (cropped to a square, shown as round avatars); **DGCA certificate copies** (PDF, PNG, JPEG) attached to licences; licence expiry shown as valid / expiring / expired
+- **People** page (admin only): search, role filter, add, edit, reset password, unlock, deactivate/reactivate, remove
+- **Sites** page: stores, mine sites, workshops and offices with coordinates, area, mineral and status; a site holding stock cannot be removed
+- **My profile** page: picture, contact number, licence copy, password change, sign out; account menu on the sidebar profile chip
+- **Role-based navigation:** People only for administrators; Design gallery hidden in production builds
+- **Background task queue** so storage work never freezes the screen
+- Database migration 0002 (sites, local credentials, licence document)
+- ADR-0006
+
+### Changed
+- Toasts appear bottom-right so they never cover page actions; stacked toasts no longer get stuck half-faded
+- Lists use button padding so row content is inset correctly
+- Sidebar focus ring now appears only for keyboard navigation, drawn inside the highlight so it is never clipped
+
+### Fixed
+- App would not start on Windows without a time-zone database (added `tzdata`)
+- Picture saving failed because PySide's type stubs disagree with its runtime (found by the walk-through)
+- Lockout could crash after ~45 consecutive failures (overflow; found by a property test)
+- The database connection was left open when the app closed
+
 ### Added — Sprint 2 (Design system & app shell)
 - **Qt Quick UI** replacing the Sprint 0 widgets window; Python view-models behind every screen
 - **Colour engine:** OKLCH conversion, gamut mapping and WCAG contrast maths; 12-step palettes whose text and border steps are forced to meet AA contrast

@@ -25,6 +25,7 @@ class PilotLicence(ValueModel):
 
     number: str
     expires_on: date
+    document: str | None = None  # FileStore reference to a scan of the certificate
 
     @field_validator("number")
     @classmethod
@@ -39,6 +40,13 @@ class PilotLicence(ValueModel):
 
     def days_remaining(self, day: date) -> int:
         return (self.expires_on - day).days
+
+    def status_on(self, day: date) -> str:
+        """``valid``, ``expiring`` (within the first warning window) or ``expired``."""
+        remaining = self.days_remaining(day)
+        if remaining < 0:
+            return "expired"
+        return "expiring" if remaining <= LICENCE_WARNING_DAYS[0] else "valid"
 
 
 class User(VersionedRecord):

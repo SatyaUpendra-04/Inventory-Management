@@ -4,11 +4,15 @@ from dataclasses import dataclass
 
 import pytest
 
+from ims.adapters.files import MemoryFileStore
+from ims.adapters.local_auth import LocalAuthProvider, MemoryCredentialStore, fast_hasher
 from ims.adapters.memory import memory_storage
+from ims.application.accounts import AccountService
 from ims.application.assets import AssetService
 from ims.application.catalogue import CatalogueService
 from ims.application.context import Actor, CommandContext
 from ims.application.runner import CommandRunner
+from ims.application.sites import SiteService
 from ims.application.stock import StockService
 from ims.application.usage import UsageService
 from ims.application.users import UserService
@@ -28,6 +32,10 @@ class App:
     assets: AssetService
     usage: UsageService
     stock: StockService
+    sites: SiteService
+    accounts: AccountService
+    auth: LocalAuthProvider
+    files: MemoryFileStore
     admin: User
     pilot: User
     surveyor: User
@@ -47,14 +55,21 @@ def app() -> App:
     admin, pilot, surveyor = make_user(Role.ADMIN), make_user(Role.PILOT), make_user(Role.SURVEYOR)
     for user in (admin, pilot, surveyor):
         storage.users.add(user)
+    users = UserService(storage, runner, clock)
+    auth = LocalAuthProvider(MemoryCredentialStore(), fast_hasher())
+    files = MemoryFileStore()
     application = App(
         storage=storage,
         clock=clock,
-        users=UserService(storage, runner, clock),
+        users=users,
         catalogue=CatalogueService(storage, runner),
         assets=AssetService(storage, runner, clock),
         usage=UsageService(storage, runner, clock),
         stock=StockService(storage, runner, clock),
+        sites=SiteService(storage, runner, clock),
+        accounts=AccountService(storage, auth, files, users, runner, clock),
+        auth=auth,
+        files=files,
         admin=admin,
         pilot=pilot,
         surveyor=surveyor,

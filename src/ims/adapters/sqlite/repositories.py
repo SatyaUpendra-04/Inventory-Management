@@ -12,15 +12,17 @@ from typing import Any
 from sqlalchemy import Engine, Row, Table, and_, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
+from ims.adapters.local_auth import Credential
 from ims.adapters.sqlite import schema as s
 from ims.domain.assets.asset import Asset
 from ims.domain.assets.catalogue import ItemType, Meter
 from ims.domain.assets.status import AssetStatus, StatusEvent
 from ims.domain.audit import AuditEntry
 from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
-from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, UserId
+from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, LocationId, UserId
 from ims.domain.identity.roles import Role
 from ims.domain.identity.user import PilotLicence, User
+from ims.domain.sites.site import Site, SiteKind, SiteStatus
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.usage.ledger import UsageEntry
 from ims.ports.repository import CommandRecord, Storage
@@ -147,6 +149,7 @@ def _user_row(u: User) -> dict[str, Any]:
         "phone": u.phone,
         "licence_number": u.licence.number if u.licence else None,
         "licence_expires_on": _d(u.licence.expires_on) if u.licence else None,
+        "licence_document": u.licence.document if u.licence else None,
         "profile_picture": u.profile_picture,
         "is_active": u.is_active,
         "must_change_password": u.must_change_password,
@@ -156,7 +159,11 @@ def _user_row(u: User) -> dict[str, Any]:
 
 def _user(r: Row[Any]) -> User:
     licence = (
-        PilotLicence(number=r.licence_number, expires_on=date.fromisoformat(r.licence_expires_on))
+        PilotLicence(
+            number=r.licence_number,
+            expires_on=date.fromisoformat(r.licence_expires_on),
+            document=r.licence_document,
+        )
         if r.licence_number
         else None
     )
@@ -213,6 +220,112 @@ class SqliteUsers(_Base):
 
     def update(self, user: User) -> None:
         self._update_versioned(_user_row(user))
+
+
+# ------------------------------------------------------------------ sites
+
+
+def _dec(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
+
+
+def _parse_dec(value: str | None) -> Decimal | None:
+    return None if value is None else Decimal(value)
+
+
+def _site_row(s: Site) -> dict[str, Any]:
+    return {
+        "id": str(s.id),
+        "version": s.version,
+        "code": s.code,
+        "name": s.name,
+        "kind": s.kind.value,
+        "region": s.region,
+        "latitude": _dec(s.latitude),
+        "longitude": _dec(s.longitude),
+        "area_hectares": _dec(s.area_hectares),
+        "mineral": s.mineral,
+        "status": s.status.value,
+        "notes": s.notes,
+        "deleted_at": _ts(s.deleted_at),
+    }
+
+
+def _site(r: Row[Any]) -> Site:
+    return Site(
+        id=LocationId(uuid.UUID(r.id)),
+        version=r.version,
+        code=r.code,
+        name=r.name,
+        kind=SiteKind(r.kind),
+        region=r.region,
+        latitude=_parse_dec(r.latitude),
+        longitude=_parse_dec(r.longitude),
+        area_hectares=_parse_dec(r.area_hectares),
+        mineral=r.mineral,
+        status=SiteStatus(r.status),
+        notes=r.notes,
+        deleted_at=_parse_ts(r.deleted_at),
+    )
+
+
+class SqliteSites(_Base):
+    table, label = s.sites, "site"
+
+    def get(self, site_id: LocationId) -> Site | None:
+        return self._one(s.sites.c.id == str(site_id), _site)
+
+    def find_by_code(self, code: str) -> Site | None:
+        return self._one(s.sites.c.code == code.strip().upper(), _site)
+
+    def list(self, *, include_deleted: bool = False) -> list[Site]:
+        query = select(s.sites).order_by(s.sites.c.code)
+        if not include_deleted:
+            query = query.where(s.sites.c.deleted_at.is_(None))
+        return self._many(query, _site)
+
+    def add(self, site: Site) -> None:
+        self._insert(_site_row(site))
+
+    def update(self, site: Site) -> None:
+        self._update_versioned(_site_row(site))
+
+
+class SqliteCredentialStore:
+    """Credential rows for :class:`ims.adapters.local_auth.LocalAuthProvider`."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def get(self, user_id: UserId) -> Credential | None:
+        t = s.local_credentials
+        with self._engine.connect() as conn:
+            r = conn.execute(select(t).where(t.c.user_id == str(user_id))).first()
+        if r is None:
+            return None
+        return Credential(
+            user_id=UserId(uuid.UUID(r.user_id)),
+            password_hash=r.password_hash,
+            failed_attempts=r.failed_attempts,
+            locked_until=_parse_ts(r.locked_until),
+            changed_at=_parse_ts(r.changed_at),
+        )
+
+    def put(self, credential: Credential) -> None:
+        t = s.local_credentials
+        row = {
+            "user_id": str(credential.user_id),
+            "password_hash": credential.password_hash,
+            "failed_attempts": credential.failed_attempts,
+            "locked_until": _ts(credential.locked_until),
+            "changed_at": _ts(credential.changed_at),
+        }
+        with self._engine.begin() as conn:
+            exists = conn.execute(select(t.c.user_id).where(t.c.user_id == row["user_id"])).first()
+            if exists is None:
+                conn.execute(insert(t).values(**row))
+            else:
+                conn.execute(update(t).where(t.c.user_id == row["user_id"]).values(**row))
 
 
 # ------------------------------------------------------------------ catalogue & assets
@@ -546,6 +659,7 @@ class SqliteCommandLog(_Base):
 def sqlite_storage(engine: Engine) -> Storage:
     return Storage(
         users=SqliteUsers(engine),
+        sites=SqliteSites(engine),
         item_types=SqliteItemTypes(engine),
         assets=SqliteAssets(engine),
         status_events=SqliteStatusEvents(engine),

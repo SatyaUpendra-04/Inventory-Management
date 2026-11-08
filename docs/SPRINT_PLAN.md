@@ -86,7 +86,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** the shell and every component work in all themes, contrast tests pass, and you have approved the look and motion in a review session.
 **Result:** 18 components, shell, Settings, sign-in design and gallery; 299 tests (96.8% coverage), zero QML warnings across every page and theme; every preset theme and 20,000 random accents pass WCAG AA. Look and motion approved by the product owner.
 
-### Sprint 3 — Accounts, users & sites
+### Sprint 3 — Accounts, users & sites ✅ (done 2026-11-08)
 - `AuthProvider` and `FileStore` ports (moved from Sprint 1)
 - Login via `AuthProvider` (local accounts with Argon2 hashing for now)
 - Account management: Admin-created users, temporary password with forced change, admin reset, lockout, deactivation
@@ -95,6 +95,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - Sites / mine areas
 
 **Done when:** an Admin can onboard Pilots and Surveyors end to end.
+**Result:** first-run setup, sign-in with stored escalating lockout, temporary passwords with forced change, required profile picture, People (add, edit, reset, unlock, deactivate, remove, licence copies), Sites, My profile, role-based navigation, background task queue (ADR-0006). 372 tests, 95% coverage; domain 99%.
 
 ### Sprint 4 — Asset registry, configuration & compliance
 - Asset catalogue, filters, add/edit/retire, asset detail with full history
@@ -222,7 +223,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | 0 | 1 | Foundation ✅ |
 | 1 | 2 | Domain core & storage contract ✅ |
 | 2 | 2 | Design system & app shell ✅ |
-| 3 | 2 | Accounts, users, sites |
+| 3 | 2 | Accounts, users, sites ✅ |
 | 4 | 2 | Asset registry, configuration, compliance |
 | 5 | 2 | Projects, deployments, field logs |
 | 6 | 2 | Reservations |

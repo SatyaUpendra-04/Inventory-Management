@@ -3,8 +3,8 @@
 Rules every adapter must follow (verified by ``tests/contract``):
 
 * ``add`` stores a new record. Same ID already stored → :class:`AlreadyExists`.
-  A unique value (username, email, employee ID, item code, asset tag, serial number
-  per item type) already used → :class:`ConflictError`.
+  A unique value (username, email, employee ID, site code, item code, asset tag,
+  serial number per item type) already used → :class:`ConflictError`.
 * ``update`` takes the record *with its new version*. It succeeds only if the stored
   version is exactly one lower; otherwise :class:`ConflictError` (someone else saved
   first). Unknown ID → :class:`NotFound`.
@@ -24,9 +24,10 @@ from ims.domain.assets.asset import Asset
 from ims.domain.assets.catalogue import ItemType
 from ims.domain.assets.status import StatusEvent
 from ims.domain.audit import AuditEntry
-from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, UserId
+from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, LocationId, UserId
 from ims.domain.common.model import UtcDateTime, ValueModel
 from ims.domain.identity.user import User
+from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.usage.ledger import UsageEntry
 
@@ -40,6 +41,14 @@ class UserRepository(Protocol):
     def count_active_admins(self) -> int: ...
     def add(self, user: User) -> None: ...
     def update(self, user: User) -> None: ...
+
+
+class SiteRepository(Protocol):
+    def get(self, site_id: LocationId) -> Site | None: ...
+    def find_by_code(self, code: str) -> Site | None: ...
+    def list(self, *, include_deleted: bool = False) -> list[Site]: ...
+    def add(self, site: Site) -> None: ...
+    def update(self, site: Site) -> None: ...
 
 
 class ItemTypeRepository(Protocol):
@@ -102,6 +111,7 @@ class Storage:
     """Everything the application layer needs from a backend."""
 
     users: UserRepository
+    sites: SiteRepository
     item_types: ItemTypeRepository
     assets: AssetRepository
     status_events: StatusEventRepository

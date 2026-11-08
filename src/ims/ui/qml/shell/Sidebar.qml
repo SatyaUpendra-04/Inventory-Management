@@ -12,7 +12,7 @@ Rectangle {
     function indexOfKey(key) {
         for (var i = 0; i < Shell.sections.length; ++i)
             if (Shell.sections[i].key === key) return i
-        return 0
+        return -1  // a page outside the sidebar (e.g. My profile): highlight nothing
     }
 
     // Subtle vertical sheen, standing in for macOS vibrancy.
@@ -71,8 +71,13 @@ Rectangle {
         Accessible.role: Accessible.List
         Accessible.name: qsTr("Sections")
 
-        Keys.onUpPressed: Shell.step(-1)
-        Keys.onDownPressed: Shell.step(1)
+        // The focus ring is for keyboard users only, as on macOS: Tab or arrow keys
+        // show it; a mouse click does not.
+        property bool focusFromClick: false
+        readonly property bool keyboardFocus: activeFocus && !focusFromClick
+        onActiveFocusChanged: if (!activeFocus) focusFromClick = false
+        Keys.onUpPressed: { focusFromClick = false; Shell.step(-1) }
+        Keys.onDownPressed: { focusFromClick = false; Shell.step(1) }
 
         section.property: "group"
         section.delegate: Txt {
@@ -88,6 +93,7 @@ Rectangle {
         }
 
         highlight: Rectangle {
+            visible: nav.currentIndex >= 0
             width: nav.width
             height: nav.currentItem ? nav.currentItem.height : 0
             y: nav.currentItem ? nav.currentItem.y : 0
@@ -97,7 +103,7 @@ Rectangle {
                 enabled: !Theme.reducedMotion
                 SpringAnimation { spring: Theme.motion.springStiffness; damping: Theme.motion.springDamping; epsilon: 0.25 }
             }
-            FocusRing { show: nav.activeFocus }
+            FocusRing { inset: true; show: nav.activeFocus && nav.keyboardFocus }
         }
 
         delegate: AbstractButton {
@@ -112,7 +118,11 @@ Rectangle {
             focusPolicy: Qt.NoFocus
             Accessible.name: modelData.title
             Accessible.role: Accessible.ListItem
-            onClicked: { Shell.navigate(modelData.key); nav.forceActiveFocus(Qt.MouseFocusReason) }
+            onClicked: {
+                nav.focusFromClick = true
+                nav.forceActiveFocus(Qt.MouseFocusReason)
+                Shell.navigate(modelData.key)
+            }
 
             background: Rectangle {
                 radius: Theme.radius.sm
@@ -138,7 +148,7 @@ Rectangle {
         }
     }
 
-    Rectangle {
+    AbstractButton {
         id: profile
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -146,30 +156,56 @@ Rectangle {
         anchors.margins: Theme.space.xs
         anchors.rightMargin: Theme.space.xs + 1
         height: 52
-        radius: Theme.radius.md
-        color: "transparent"
+        hoverEnabled: true
+        focusPolicy: Qt.StrongFocus
+        Accessible.name: qsTr("Account menu for %1").arg(Session.displayName)
+        onClicked: menu.open()
 
-        Row {
-            anchors.verticalCenter: parent.verticalCenter
-            x: Theme.space.sm
+        background: Rectangle {
+            radius: Theme.radius.md
+            color: profile.hovered || menu.visible ? Theme.colors.element : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.motion.micro } }
+            FocusRing { show: profile.visualFocus; baseRadius: Theme.radius.md }
+        }
+        contentItem: Row {
+            leftPadding: Theme.space.xs
             spacing: Theme.space.sm
-            Rectangle {
-                width: 32
-                height: 32
-                radius: 16
-                color: Theme.colors.accentSubtleHover
-                Txt {
-                    anchors.centerIn: parent
-                    text: "DP"
-                    variant: "caption"
-                    font.weight: Theme.type.semibold
-                    color: Theme.colors.accentText
-                }
+            Avatar {
+                size: 32
+                source: Session.picture
+                initials: Session.initials
+                anchors.verticalCenter: parent.verticalCenter
             }
             Column {
                 anchors.verticalCenter: parent.verticalCenter
-                Txt { text: qsTr("Design preview"); variant: "bodyStrong" }
-                Txt { text: qsTr("Sign-in arrives in Sprint 3"); variant: "caption"; muted: true }
+                width: profile.width - 80
+                Txt { width: parent.width; text: Session.displayName; variant: "bodyStrong"; elide: Text.ElideRight }
+                Txt { width: parent.width; text: Session.roleLabel; variant: "caption"; muted: true }
+            }
+            Icon { name: "chevron-up"; size: 16; color: Theme.colors.textMuted; anchors.verticalCenter: parent.verticalCenter }
+        }
+
+        AppPopover {
+            id: menu
+            y: -height - 6
+            width: profile.width
+            padding: Theme.space.xs
+            Column {
+                width: profile.width - Theme.space.xs * 2
+                AppButton {
+                    width: parent.width
+                    variant: "ghost"
+                    iconName: "user"
+                    text: qsTr("My profile")
+                    onClicked: { menu.close(); Shell.navigate("profile") }
+                }
+                AppButton {
+                    width: parent.width
+                    variant: "ghost"
+                    iconName: "log-out"
+                    text: qsTr("Sign out")
+                    onClicked: { menu.close(); Session.signOut() }
+                }
             }
         }
     }

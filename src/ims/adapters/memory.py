@@ -14,8 +14,9 @@ from ims.domain.assets.catalogue import ItemType
 from ims.domain.assets.status import StatusEvent
 from ims.domain.audit import AuditEntry
 from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
-from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, UserId
+from ims.domain.common.ids import AssetId, CommandId, ItemTypeId, LocationId, UserId
 from ims.domain.identity.user import User
+from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.usage.ledger import UsageEntry
 from ims.ports.repository import CommandRecord, Storage
@@ -123,6 +124,27 @@ class MemoryUsers:
 
     def update(self, user: User) -> None:
         self._t.update(user)
+
+
+class MemorySites:
+    def __init__(self) -> None:
+        self._t: _Table[Site] = _Table("site", {"code": lambda s: s.code})
+
+    def get(self, site_id: LocationId) -> Site | None:
+        return self._t.rows.get(site_id)
+
+    def find_by_code(self, code: str) -> Site | None:
+        return self._t.find("code", code.strip().upper())
+
+    def list(self, *, include_deleted: bool = False) -> list[Site]:
+        sites = [s for s in self._t.rows.values() if include_deleted or not s.is_deleted]
+        return sorted(sites, key=lambda s: s.code)
+
+    def add(self, site: Site) -> None:
+        self._t.add(site)
+
+    def update(self, site: Site) -> None:
+        self._t.update(site)
 
 
 class MemoryItemTypes:
@@ -257,6 +279,7 @@ class MemoryCommandLog:
 def memory_storage() -> Storage:
     return Storage(
         users=MemoryUsers(),
+        sites=MemorySites(),
         item_types=MemoryItemTypes(),
         assets=MemoryAssets(),
         status_events=MemoryStatusEvents(),

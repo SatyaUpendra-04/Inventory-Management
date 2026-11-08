@@ -19,7 +19,7 @@ ApplicationWindow {
 
     // Changes the theme with a cross-fade instead of an abrupt flash.
     function transitionTheme(change) {
-        if (Theme.reducedMotion || !shellLayout.visible) { change(); return }
+        if (Theme.reducedMotion || !window.inApp) { change(); return }
         shellLayout.grabToImage(function (result) {
             fade.source = result.url
             fade.opacity = 1
@@ -33,13 +33,19 @@ ApplicationWindow {
         stack.replace(Qt.resolvedUrl("pages/" + section.page + ".qml"), { section: section })
     }
 
-    function openSignInPreview() { signIn.active = true }
-    function closeSignInPreview() { signIn.item.leave() }
+    readonly property bool inApp: Session.stage === "app"
+    readonly property var gatePages: ({
+        setup: "pages/SetupPage.qml", signIn: "pages/LoginPage.qml",
+        changePassword: "pages/ChangePasswordPage.qml", completeProfile: "pages/CompleteProfilePage.qml"
+    })
 
     RowLayout {
         id: shellLayout
         anchors.fill: parent
         spacing: 0
+        visible: window.inApp
+        opacity: window.inApp ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.motion.page; easing.type: Easing.OutCubic } }
 
         Sidebar { Layout.fillHeight: true }
 
@@ -83,20 +89,26 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+Shift+L"; onActivated: window.transitionTheme(function () { Theme.setMode(Theme.dark ? "light" : "dark") }) }
 
     ToastHost {
-        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.right: parent.right
-        anchors.topMargin: 72
+        anchors.bottomMargin: Theme.space.lg
         anchors.rightMargin: Theme.space.lg
         z: 900
     }
 
+    // Setup, sign-in, password and profile screens shown before the app.
     Loader {
-        id: signIn
+        id: gate
+        objectName: "gate"
         anchors.fill: parent
-        active: false
+        active: !window.inApp
+        source: window.gatePages[Session.stage] || ""
         z: 800
-        source: "pages/LoginPage.qml"
-        onLoaded: item.closed.connect(function () { signIn.active = false })
+        onLoaded: {
+            item.opacity = 0
+            gateFade.restart()
+        }
+        NumberAnimation { id: gateFade; target: gate.item; property: "opacity"; to: 1; duration: Theme.motion.page; easing.type: Easing.OutCubic }
     }
 
     // Snapshot of the previous theme, faded out after a theme change.

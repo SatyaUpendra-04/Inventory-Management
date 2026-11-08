@@ -6,11 +6,13 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "alembic>=1.20.1",
+    "argon2-cffi>=25.1.0",
     "platformdirs>=4.14.5",
     "pydantic>=2.14.3",
     "pyside6>=6.12.0",
     "sqlalchemy>=2.1.8",
     "structlog>=26.1.0",
+    "tzdata>=2026.6",
 ]
 
 [project.scripts]
@@ -46,7 +48,7 @@ select = [
 ignore = ["N818"]  # domain exceptions read better without an "Error" suffix (RuleViolation, NotFound)
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # assert is how pytest works
+"tests/**" = ["S101", "S105", "S106"]  # asserts, and sample passwords in tests
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]

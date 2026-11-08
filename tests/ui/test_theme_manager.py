@@ -91,18 +91,35 @@ class TestIcons:
 class TestViewModels:
     def test_navigation(self, qapp: QApplication) -> None:
         shell = ShellViewModel("gallery")
+        shell.set_permissions(["user.manage", "site.view"])
         seen: list[str] = []
         shell.currentChanged.connect(lambda: seen.append(shell.current))
         shell.navigate("people")
         shell.navigate("people")  # no repeat signal
         shell.navigate("nowhere")  # ignored
-        assert seen == ["people"] and shell.currentSection["sprint"] == 3
+        assert seen == ["people"] and shell.currentSection["page"] == "PeoplePage"
         shell.step(-100)
         assert shell.current == SECTIONS[0].key
         shell.step(100)
-        assert shell.current == SECTIONS[-1].key
+        assert shell.current == "settings"  # last item in the sidebar
+        shell.navigate("profile")  # reachable, but not listed in the sidebar
+        assert shell.current == "profile"
+        assert "profile" not in [s["key"] for s in shell.sections]
+        shell.step(1)  # from a page outside the sidebar, arrows start at the top
+        assert shell.current == SECTIONS[0].key
         assert ShellViewModel("bogus").current == SECTIONS[0].key
-        assert len(shell.sections) == len(SECTIONS)
+
+    def test_sections_follow_permissions_and_environment(self, qapp: QApplication) -> None:
+        crew = ShellViewModel("gallery")
+        crew.set_permissions(["site.view", "asset.view"])
+        keys = [s["key"] for s in crew.sections]
+        assert "people" not in keys and "sites" in keys and "gallery" in keys
+        crew.navigate("people")
+        assert crew.current != "people"
+        production = ShellViewModel("gallery", production=True)
+        production.set_permissions(["user.manage", "site.view"])
+        assert "gallery" not in [s["key"] for s in production.sections]
+        assert production.current == SECTIONS[0].key
 
     def test_toasts_normalise_kind(self, qapp: QApplication) -> None:
         toasts = ToastService()

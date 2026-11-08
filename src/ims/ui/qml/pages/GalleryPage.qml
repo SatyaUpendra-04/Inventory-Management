@@ -254,7 +254,6 @@ Flickable {
                     AppButton { text: qsTr("Open sheet"); compact: true; variant: "primary"; onClicked: sheet.open() }
                     AppButton { id: popButton; text: qsTr("Open popover"); compact: true; onClicked: popover.open() }
                     AppButton { text: page.loading ? qsTr("Show content") : qsTr("Show loading"); compact: true; onClicked: page.loading = !page.loading }
-                    AppButton { text: qsTr("Preview sign-in screen"); compact: true; iconName: "lock"; onClicked: ApplicationWindow.window.openSignInPreview() }
                 }
 
                 AppPopover {
@@ -328,7 +327,10 @@ Flickable {
                                 NumberAnimation { property: "scale"; from: Theme.reducedMotion ? 1 : 0.92; to: 1; duration: Theme.motion.standard; easing.type: Easing.OutBack }
                             }
                             remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: Theme.motion.standard } }
-                            displaced: Transition { NumberAnimation { property: "y"; duration: Theme.motion.standard; easing.type: Easing.OutCubic } }
+                            displaced: Transition {
+                                NumberAnimation { property: "y"; duration: Theme.motion.standard; easing.type: Easing.OutCubic }
+                                NumberAnimation { properties: "opacity,scale"; to: 1; duration: Theme.motion.standard }
+                            }
                             delegate: Rectangle {
                                 required property string label
                                 width: 260

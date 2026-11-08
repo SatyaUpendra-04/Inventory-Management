@@ -8,6 +8,7 @@ Button {
     property string variant: "secondary"
     property string iconName: ""
     property bool compact: false
+    property bool busy: false
 
     readonly property bool _primary: variant === "primary"
     readonly property bool _danger: variant === "danger"
@@ -53,7 +54,18 @@ Button {
             anchors.centerIn: parent
             spacing: Theme.space.xs - 2
             Icon {
-                visible: control.iconName !== ""
+                visible: control.busy
+                name: "refresh"
+                size: control.compact ? 14 : 16
+                color: control._fg
+                anchors.verticalCenter: parent.verticalCenter
+                RotationAnimation on rotation {
+                    running: control.busy
+                    from: 0; to: 360; duration: 900; loops: Animation.Infinite
+                }
+            }
+            Icon {
+                visible: control.iconName !== "" && !control.busy
                 name: control.iconName
                 size: control.compact ? 14 : 16
                 color: control._fg

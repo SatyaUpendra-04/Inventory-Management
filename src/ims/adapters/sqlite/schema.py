@@ -47,10 +47,39 @@ users = Table(
     Column("phone", String(20), nullable=False),
     Column("licence_number", String(40)),
     Column("licence_expires_on", String(10)),
+    Column("licence_document", String(80)),
     Column("profile_picture", String(260)),
     Column("is_active", Boolean, nullable=False),
     Column("must_change_password", Boolean, nullable=False),
     Column("deleted_at", String(32)),
+)
+
+sites = Table(
+    "sites",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("code", String(20), nullable=False, unique=True),
+    Column("name", String(100), nullable=False),
+    Column("kind", String(16), nullable=False),
+    Column("region", String(100), nullable=False),
+    Column("latitude", String(24)),
+    Column("longitude", String(24)),
+    Column("area_hectares", String(24)),
+    Column("mineral", String(60), nullable=False),
+    Column("status", String(16), nullable=False),
+    Column("notes", Text, nullable=False),
+    Column("deleted_at", String(32)),
+)
+
+local_credentials = Table(
+    "local_credentials",
+    metadata,
+    Column("user_id", String(ID), ForeignKey("users.id"), primary_key=True),
+    Column("password_hash", String(200), nullable=False),
+    Column("failed_attempts", Integer, nullable=False),
+    Column("locked_until", String(32)),
+    Column("changed_at", String(32)),
 )
 
 item_types = Table(

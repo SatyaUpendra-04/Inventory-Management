@@ -1,7 +1,8 @@
-"""Navigation for the app shell: sidebar sections and the current page."""
+"""Navigation for the app shell: sidebar sections (filtered by role) and the current page."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -16,6 +17,9 @@ class Section:
     page: str  # QML page file in qml/pages
     sprint: int  # sprint that delivers the real page (0 = available now)
     summary: str
+    permission: str = ""  # needed to see the section ("" = everyone signed in)
+    in_sidebar: bool = True
+    dev_only: bool = False  # hidden in production builds
 
 
 SECTIONS: tuple[Section, ...] = (
@@ -35,46 +39,94 @@ SECTIONS: tuple[Section, ...] = (
             "Service schedules, defects, work orders and return to service."),
     Section("stock", "GCP stock", "flag", "Fleet", "PlaceholderPage", 4,
             "GCP banner stock, issues to projects and reorder alerts."),
-    Section("people", "People", "users", "Organisation", "PlaceholderPage", 3,
-            "Pilots, surveyors and administrators, with licences."),
+    Section("people", "People", "users", "Organisation", "PeoplePage", 0,
+            "Pilots, surveyors and administrators, with licences and accounts.",
+            permission="user.manage"),
+    Section("sites", "Sites", "map-pin", "Organisation", "SitesPage", 0,
+            "Stores, mine sites, workshops and offices.", permission="site.view"),
     Section("reports", "Reports", "chart", "Organisation", "PlaceholderPage", 9,
             "Pilot, project and fleet reports with exports."),
     Section("gallery", "Design gallery", "palette", "System", "GalleryPage", 0,
-            "Every component in every theme, for review."),
+            "Every component in every theme, for review.", dev_only=True),
     Section("settings", "Settings", "sliders", "System", "SettingsPage", 0,
             "Appearance, accessibility and preferences."),
+    Section("profile", "My profile", "user", "System", "ProfilePage", 0,
+            "Your picture, contact details, licence and password.", in_sidebar=False),
 )  # fmt: skip
 
 
 class ShellViewModel(QObject):
     currentChanged = Signal()  # noqa: N815 (Qt signal name)
+    sectionsChanged = Signal()  # noqa: N815
 
-    def __init__(self, initial: str = "gallery", parent: QObject | None = None) -> None:
+    def __init__(
+        self, initial: str = "dashboard", *, production: bool = False, parent: QObject | None = None
+    ) -> None:
         super().__init__(parent)
-        self._keys = [s.key for s in SECTIONS]
-        self._current = initial if initial in self._keys else self._keys[0]
+        self._initial = initial
+        self._production = production
+        self._permissions: frozenset[str] = frozenset()
+        self._available: list[Section] = []
+        self._recompute()
+        self._current = self._pick(initial)
+
+    # ------------------------------------------------------------------ helpers
+
+    def _recompute(self) -> None:
+        self._available = [
+            s
+            for s in SECTIONS
+            if (not s.permission or s.permission in self._permissions)
+            and not (s.dev_only and self._production)
+        ]
+
+    def _keys(self) -> list[str]:
+        return [s.key for s in self._available]
+
+    def _sidebar(self) -> list[Section]:
+        return [s for s in self._available if s.in_sidebar]
+
+    def _pick(self, key: str) -> str:
+        keys = self._keys()
+        return key if key in keys else keys[0]
+
+    # ------------------------------------------------------------------ properties
 
     def _get_sections(self) -> list[dict[str, object]]:
-        return [asdict(s) for s in SECTIONS]
+        return [asdict(s) for s in self._sidebar()]
 
     def _get_current(self) -> str:
         return self._current
 
     def _get_current_section(self) -> dict[str, object]:
-        return asdict(next(s for s in SECTIONS if s.key == self._current))
+        return asdict(next(s for s in self._available if s.key == self._current))
 
-    sections = Property(list, _get_sections, constant=True)
+    sections = Property(list, _get_sections, notify=sectionsChanged)
     current = Property(str, _get_current, notify=currentChanged)
     currentSection = Property(dict, _get_current_section, notify=currentChanged)  # noqa: N815
 
+    # ------------------------------------------------------------------ slots
+
+    def set_permissions(self, permissions: Iterable[str]) -> None:
+        """Shows only the sections the signed-in person may use; returns to the start page."""
+        self._permissions = frozenset(permissions)
+        self._recompute()
+        self.sectionsChanged.emit()
+        self._current = self._pick(self._initial)
+        self.currentChanged.emit()
+
     @Slot(str)
     def navigate(self, key: str) -> None:
-        if key in self._keys and key != self._current:
+        if key in self._keys() and key != self._current:
             self._current = key
             self.currentChanged.emit()
 
     @Slot(int)
     def step(self, delta: int) -> None:
         """Moves the selection up or down the sidebar (keyboard navigation)."""
-        index = self._keys.index(self._current)
-        self.navigate(self._keys[max(0, min(len(self._keys) - 1, index + delta))])
+        keys = [s.key for s in self._sidebar()]
+        if self._current not in keys:
+            self.navigate(keys[0])
+            return
+        index = keys.index(self._current)
+        self.navigate(keys[max(0, min(len(keys) - 1, index + delta))])

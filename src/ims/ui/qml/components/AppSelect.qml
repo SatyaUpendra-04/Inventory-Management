@@ -1,9 +1,15 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-// Drop-down list. Pass a JS array of strings as ``model``.
+// Drop-down list. ``model`` is an array of strings, or of objects with ``textRole`` and
+// ``valueRole`` (e.g. [{ value: "pilot", label: "Pilot" }]); read ``currentValue``.
 ComboBox {
     id: control
+
+    function selectValue(value) {
+        var index = indexOfValue(value)
+        currentIndex = index >= 0 ? index : 0
+    }
 
     implicitWidth: 220
     implicitHeight: 34
@@ -33,7 +39,7 @@ ComboBox {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Txt {
-                text: option.modelData
+                text: control.textRole ? option.modelData[control.textRole] : option.modelData
                 anchors.verticalCenter: parent.verticalCenter
             }
         }

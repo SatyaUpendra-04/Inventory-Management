@@ -20,7 +20,11 @@ log = structlog.get_logger(__name__)
 
 def create_sqlite_engine(db_path: Path) -> Engine:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    # Storage calls run on a background worker thread; each call takes its own pooled
+    # connection, so SQLite's same-thread check is relaxed (WAL handles concurrency).
+    engine = create_engine(
+        f"sqlite:///{db_path.as_posix()}", connect_args={"check_same_thread": False}
+    )
 
     @event.listens_for(engine, "connect")
     def _pragmas(dbapi_connection: sqlite3.Connection, _record: Any) -> None:

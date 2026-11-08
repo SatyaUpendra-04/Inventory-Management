@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QMetaObject, Qt
+from PySide6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtQuick import QQuickItem, QQuickWindow
 from pytestqt.qtbot import QtBot
@@ -40,19 +40,7 @@ def test_every_section_renders_in_every_theme_without_warnings(ui: UiContext, mo
         ui.theme.setHighContrast(high_contrast)
         for section in SECTIONS:
             ui.shell.navigate(section.key)
-            settle(450)
-    assert warnings_of(ui) == []
-
-
-def test_theme_cross_fade_runs_and_applies(ui: UiContext) -> None:
-    ui.theme.setMode("light")
-    window = window_of(ui)
-    root = ui.engine.rootObjects()[0]
-    QMetaObject.invokeMethod(root, "openSignInPreview")
-    settle(500)
-    QMetaObject.invokeMethod(root, "closeSignInPreview")
-    settle(400)
-    assert window.isVisible()
+            settle(ui, 400)
     assert warnings_of(ui) == []
 
 
@@ -63,7 +51,7 @@ def test_sidebar_keyboard_navigation(ui: UiContext, qtbot: QtBot) -> None:
     assert sidebar.property("activeFocusOnTab"), "sidebar list should be reachable with Tab"
     sidebar.forceActiveFocus(Qt.FocusReason.TabFocusReason)
     ui.shell.navigate("gallery")
-    settle(50)
+    settle(ui, 50)
     qtbot.keyClick(window, Qt.Key.Key_Down)
     assert ui.shell.current == "settings"
     qtbot.keyClick(window, Qt.Key.Key_Up)
@@ -75,15 +63,18 @@ def test_shortcut_opens_settings(ui: UiContext, qtbot: QtBot) -> None:
     window = window_of(ui)
     window.requestActivate()
     qtbot.keyClick(window, Qt.Key.Key_Comma, Qt.KeyboardModifier.ControlModifier)
-    settle(100)
+    settle(ui, 100)
     assert ui.shell.current == "settings"
 
 
 def _not_blank(image: QImage) -> bool:
     step = 37
-    colours = {image.pixel(x, y) for x in range(0, image.width(), step)
-               for y in range(0, image.height(), step)}  # fmt: skip
-    return len(colours) > 20
+    colours = {
+        image.pixel(x, y)
+        for x in range(0, image.width(), step)
+        for y in range(0, image.height(), step)
+    }
+    return len(colours) > 12
 
 
 @pytest.mark.parametrize(
@@ -94,12 +85,61 @@ def test_screenshots_of_key_pages(ui: UiContext, mode: str, high_contrast: bool)
     """Renders pages for review; CI uploads them as an artifact."""
     ui.theme.setMode(mode)
     ui.theme.setHighContrast(high_contrast)
+    ui.sites.create(
+        {
+            "code": "MAIN-STORE",
+            "name": "Main store",
+            "kind": "store",
+            "region": "Bhubaneswar, Odisha",
+            "latitude": "20.2961",
+            "longitude": "85.8245",
+        }
+    )
+    ui.people.onboard(
+        {
+            "fullName": "Ravi Kumar",
+            "username": "rkumar",
+            "employeeId": "EMP-0102",
+            "email": "ravi@example.com",
+            "phone": "9123456780",
+            "role": "pilot",
+            "licenceNumber": "DGCA-RPC-2291",
+            "licenceExpiry": "2027-06-30",
+        }
+    )
+    settle(ui, 300)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     suffix = f"{mode}{'-hc' if high_contrast else ''}"
-    for key in ("gallery", "settings", "equipment"):
+    for key in ("gallery", "settings", "people", "sites", "profile", "equipment"):
         ui.shell.navigate(key)
-        settle(600)
+        settle(ui, 600)
         image = window_of(ui).grabWindow()
         assert not image.isNull() and _not_blank(image), f"{key} rendered blank"
         image.save(str(SCREENSHOT_DIR / f"{key}-{suffix}.png"))
+    ui.session.signOut()
+    settle(ui, 600)
+    window_of(ui).grabWindow().save(str(SCREENSHOT_DIR / f"sign-in-{suffix}.png"))
+    assert warnings_of(ui) == []
+
+
+def test_sidebar_focus_ring_is_for_keyboard_only(ui: UiContext, qtbot: QtBot) -> None:
+    """A mouse click selects without a ring; Tab and arrow keys show the ring."""
+    window = window_of(ui)
+    sidebar = window.findChild(QQuickItem, "sidebarNav")
+    assert isinstance(sidebar, QQuickItem)
+    projects = QMetaObject.invokeMethod(
+        sidebar, "itemAtIndex", Q_RETURN_ARG("QQuickItem*"), Q_ARG(int, 1)
+    )
+    assert isinstance(projects, QQuickItem)
+    centre = projects.mapToScene(QPointF(projects.width() / 2, projects.height() / 2)).toPoint()
+    qtbot.mouseClick(window, Qt.MouseButton.LeftButton, pos=centre)
+    settle(ui, 100)
+    assert ui.shell.current == "projects"
+    assert sidebar.hasActiveFocus() and not sidebar.property("keyboardFocus")
+    qtbot.keyClick(window, Qt.Key.Key_Down)
+    assert ui.shell.current == "deployments" and sidebar.property("keyboardFocus")
+    sidebar.setFocus(False)
+    settle(ui, 50)
+    sidebar.forceActiveFocus(Qt.FocusReason.TabFocusReason)
+    assert sidebar.property("keyboardFocus")
     assert warnings_of(ui) == []

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-// Stack of notifications in the top-right corner, fed by the Toasts service.
+// Stack of notifications in the bottom-right corner (clear of page actions), newest at the bottom.
 Item {
     id: root
 
@@ -26,6 +26,7 @@ Item {
         interactive: false
         spacing: Theme.space.xs
         model: toasts
+        verticalLayoutDirection: ListView.BottomToTop
 
         add: Transition {
             NumberAnimation { property: "x"; from: Theme.reducedMotion ? 0 : 60; to: 0
@@ -37,8 +38,11 @@ Item {
             NumberAnimation { property: "opacity"; to: 0; duration: Theme.motion.standard }
             NumberAnimation { property: "x"; to: Theme.reducedMotion ? 0 : 40; duration: Theme.motion.standard }
         }
+        // Moving items must also finish fading in, or a fast second toast leaves the
+        // first one stuck half-transparent.
         displaced: Transition {
-            NumberAnimation { properties: "y"; duration: Theme.motion.standard; easing.type: Easing.OutCubic }
+            NumberAnimation { properties: "x,y"; duration: Theme.motion.standard; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "opacity"; to: 1; duration: Theme.motion.standard }
         }
 
         delegate: Card {
