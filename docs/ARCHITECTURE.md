@@ -165,7 +165,7 @@ Every visual value comes from one token set; no colour, size or duration is hard
 | **Colour** | Tonal palettes generated in the **OKLCH** colour space, so every step has an even, perceptually accurate change in lightness. Each palette has 12 steps (background → solid → text). |
 | **Proportion** | **60-30-10:** about 60% neutral surfaces, 30% secondary surfaces and content, 10% accent (primary actions, selection, focus). Accent never fills large areas. |
 | **Semantic status** | Serviceable (green), limitation / due soon (amber), grounded / overdue (red), information (blue), retired (neutral). Same meaning in every theme, and **never colour alone**: always with an icon and a label, for colour-blind users. |
-| **Typography** | Inter (open licence, bundled) with Segoe UI Variable as fallback; modular type scale (ratio 1.2); tabular figures for numbers in tables. |
+| **Typography** | Segoe UI Variable (Windows 11's interface font) with Segoe UI and Inter as fallbacks (ADR-0004 amendment 1); modular type scale (ratio 1.2); tabular figures for numbers in tables. |
 | **Spacing & shape** | 4-point grid (4, 8, 12, 16, 24, 32, 48); corner radii 6 / 10 / 14; soft layered shadows for elevation. |
 | **Motion** | Durations 120 ms (micro), 220 ms (standard), 350 ms (page/sheet); spring-style easing (fast start, gentle settle) instead of linear movement. |
 
@@ -186,8 +186,8 @@ Every visual value comes from one token set; no colour, size or duration is hard
 ### 7.5 Accessibility & quality
 - **WCAG 2.2 AA contrast:** 4.5:1 for text, 3:1 for icons and control borders, **checked by automated tests for every theme and accent**.
 - Full keyboard navigation with visible focus; text scaling from 100% to 150% without broken layouts; screen-reader names on every control.
-- **Visual regression tests:** key components and screens are rendered off-screen in each theme and compared to approved screenshots in CI.
-- Icons: one consistent open-licence SVG set (Lucide), tinted by theme tokens.
+- **Screenshot tests:** key screens are rendered off-screen in light, dark and high-contrast; CI fails on blank renders or any QML warning and uploads the images for review (ADR-0004 amendment 4).
+- Icons: our own consistent outline SVG set (1.75 px rounded strokes), tinted by theme tokens through an image provider.
 
 ### 7.6 Application behaviour
 - **Pattern:** QML views + Python view-models (MVVM); view-models hold state and call the application layer, never storage.
@@ -204,7 +204,7 @@ Every visual value comes from one token set; no colour, size or duration is hard
 |---|---|
 | Language | Python 3.13 (pinned) |
 | UI | PySide6 (Qt 6) with **Qt Quick / QML** views and Python view-models |
-| Design system | Design tokens, OKLCH palette generator, Inter font, Lucide icons |
+| Design system | Design tokens, OKLCH palette generator, Segoe UI Variable, own SVG icon set |
 | Domain models & validation | Pydantic v2 |
 | Local adapter | SQLAlchemy 2 + Alembic migrations on SQLite |
 | Plan A adapter | Microsoft Graph (`msal`, `httpx`) |
@@ -238,7 +238,7 @@ src/ims/
   application/     commands, queries, permissions, offline queue
   ports/           repository.py, auth.py, files.py, clock.py
   adapters/        sqlite/ sharepoint/ supabase/
-  ui/              qml/ (screens, components) viewmodels/ models/ theme/ (tokens, palette, motion) assets/ (fonts, icons)
+  ui/              qml/ (components, shell, pages) viewmodels/ models/ theme/ (colour, palette, tokens, manager, icons) assets/icons/
   main.py
 tests/
   unit/  contract/  integration/  ui/

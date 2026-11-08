@@ -9,12 +9,13 @@ import sys
 from collections.abc import Sequence
 
 import structlog
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QSettings
+from PySide6.QtGui import QGuiApplication
 
 from ims import APP_ID, APP_NAME, __version__
 from ims.logging_setup import configure_logging, log_uncaught_exception, shutdown_logging
 from ims.settings import Settings
-from ims.ui.views.main_window import MainWindow
+from ims.ui.app import create_engine
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -30,18 +31,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         log_file=str(log_path),
     )
 
-    existing = QApplication.instance()
+    existing = QGuiApplication.instance()
     app = (
         existing
-        if isinstance(existing, QApplication)
-        else QApplication(list(argv) if argv is not None else sys.argv)
+        if isinstance(existing, QGuiApplication)
+        else QGuiApplication(list(argv) if argv is not None else sys.argv)
     )
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_ID)
     app.setApplicationVersion(__version__)
 
-    window = MainWindow(version=__version__, environment=settings.environment.value)
-    window.show()
+    ui = create_engine(
+        QSettings(APP_ID, APP_NAME),
+        version=__version__,
+        environment=settings.environment.value,
+    )
+    ui.engine.warnings.connect(
+        lambda warnings: [log.warning("qml_warning", message=w.toString()) for w in warnings]
+    )
+    if not ui.engine.rootObjects():
+        log.error("ui_failed_to_load")
+        shutdown_logging()
+        return 1
 
     exit_code = app.exec()
     log.info("app_stopped", exit_code=exit_code)

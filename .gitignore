@@ -32,3 +32,4 @@ Thumbs.db
 *.sqlite3
 coverage.xml
 .hypothesis/
+test-artifacts/

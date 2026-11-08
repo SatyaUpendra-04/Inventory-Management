@@ -73,17 +73,18 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** all domain rules are unit-tested (≥ 90% coverage) and the SQLite adapter passes the contract tests.
 **Result:** 225 tests; domain coverage 99%, overall 97.6%; in-memory and SQLite adapters both pass the 20-test storage contract; ADR-0005 records the retry-safety design.
 
-### Sprint 2 — Design system & app shell
+### Sprint 2 — Design system & app shell ✅ (approved 2026-11-08)
 - Switch the UI to **Qt Quick (QML)** with Python view-models (ADR-0004); replace the Sprint 0 window
-- **Design tokens:** OKLCH tonal palettes, 60-30-10 proportions, semantic status colours, type scale (Inter), 4-point spacing, radii, shadows, motion durations and easing
+- **Design tokens:** OKLCH tonal palettes, 60-30-10 proportions, semantic status colours, type scale (Segoe UI Variable), 4-point spacing, radii, shadows, motion durations and easing
 - **Themes:** Light, Dark, System (follows Windows live), high-contrast, user-chosen accent colour with automatic contrast check; cross-fade on theme change
 - **Motion:** sheets, page transitions, gliding sidebar selection, hover/press micro-interactions, animated list changes, skeleton loading, toasts; reduced-motion support
 - **Component library:** buttons, text fields, selects, date picker, toggles, segmented controls, checkboxes, cards, badges/status pills, data table, sidebar, toolbar, sheets, popovers, toasts, empty states
 - **App shell:** sidebar navigation, toolbar, settings page with theme and accent picker, login screen design
 - Component gallery page (for review and screenshot tests)
-- Quality: WCAG AA contrast tests for every theme and accent; visual regression screenshots in CI; keyboard navigation and focus rings
+- Quality: WCAG AA contrast tests for every theme and accent; screenshots of every key page in every theme uploaded by CI; keyboard navigation and focus rings
 
 **Done when:** the shell and every component work in all themes, contrast tests pass, and you have approved the look and motion in a review session.
+**Result:** 18 components, shell, Settings, sign-in design and gallery; 299 tests (96.8% coverage), zero QML warnings across every page and theme; every preset theme and 20,000 random accents pass WCAG AA. Look and motion approved by the product owner.
 
 ### Sprint 3 — Accounts, users & sites
 - `AuthProvider` and `FileStore` ports (moved from Sprint 1)
@@ -220,7 +221,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 |---|---|---|
 | 0 | 1 | Foundation ✅ |
 | 1 | 2 | Domain core & storage contract ✅ |
-| 2 | 2 | Design system & app shell |
+| 2 | 2 | Design system & app shell ✅ |
 | 3 | 2 | Accounts, users, sites |
 | 4 | 2 | Asset registry, configuration, compliance |
 | 5 | 2 | Projects, deployments, field logs |

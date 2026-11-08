@@ -9,7 +9,9 @@ import pytest
 from hypothesis import settings
 
 # Qt must render off-screen in CI and headless runs; set before any Qt import.
+# The software scene graph renders identically everywhere (no GPU needed).
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_QUICK_BACKEND", "software")
 
 from ims.logging_setup import shutdown_logging
 

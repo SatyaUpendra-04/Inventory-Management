@@ -4,6 +4,24 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 2 (Design system & app shell)
+- **Qt Quick UI** replacing the Sprint 0 widgets window; Python view-models behind every screen
+- **Colour engine:** OKLCH conversion, gamut mapping and WCAG contrast maths; 12-step palettes whose text and border steps are forced to meet AA contrast
+- **Themes:** Light, Dark and Automatic (follows Windows live), Increase contrast, ten accent presets plus any custom colour (nudged for readability when needed); choices are saved; theme changes cross-fade
+- **Motion:** sheets that drop from the top, page transitions, sidebar selection that glides on a spring, hover lift and press sink, animated list changes, skeleton shimmer, toasts; Reduce motion setting and Windows "Animation effects" respected
+- **Components:** text, icon, button, icon button, text field (with password reveal and errors), select, date picker, toggle, checkbox, segmented control, card (3 elevations), status pill, badge, data table (sortable), sheet, popover, toasts, empty state, skeleton
+- **App shell:** grouped sidebar, toolbar with search and quick theme switch, Settings page, sign-in screen design, design gallery, placeholders naming the sprint for each upcoming section; Ctrl+, and Ctrl+Shift+L shortcuts
+- **Icons:** 45 outline SVG icons, tinted per theme
+- **Tests:** WCAG AA checks for every preset theme and random custom accents, palette evenness, icon rendering, theme persistence, QML loading with zero warnings on every page in every theme, keyboard navigation, screenshots uploaded by CI
+
+### Changed
+- `run.bat` checks and repairs the app environment before launching
+- Disabled buttons use a neutral fill instead of fading the colour, so they stay legible
+- ADR-0004 amended: Segoe UI Variable font, own icon set, accent nudging, screenshot review instead of pixel baselines
+
+### Fixed
+- Focus ring could fall just below 3:1 contrast on cards with very dark custom accents (found by property tests)
+
 ### Added — Sprint 1 (Domain core & storage contract)
 - **Identity:** Admin / Pilot / Surveyor roles and permission matrix; user field rules (employee ID, email, phone, mandatory DGCA licence for Pilots); last-admin protection; password policy
 - **Equipment catalogue:** 29 default item types in three tracking modes (serialized with meters, tagged, consumable stock), including drone parts, batteries, GNSS equipment, field electronics, survey accessories and GCP banners
