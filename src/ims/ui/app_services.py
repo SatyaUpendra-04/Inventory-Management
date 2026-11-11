@@ -12,6 +12,7 @@ from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
 from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
+from ims.application.reservations import ReservationService
 from ims.application.sites import SiteService
 from ims.application.stock import StockService
 from ims.application.users import UserService
@@ -31,4 +32,5 @@ class Services:
     projects: ProjectService
     deployments: DeploymentService
     logs: FieldLogService
+    reservations: ReservationService
     clock: Clock

@@ -32,6 +32,7 @@ from ims.domain.common.ids import (
     KitTemplateId,
     LocationId,
     ProjectId,
+    ReservationId,
     SortieId,
     SurveySessionId,
     UserId,
@@ -42,6 +43,7 @@ from ims.domain.kits import Kit, KitTemplate
 from ims.domain.operations.deployment import Deployment
 from ims.domain.operations.field_logs import Sortie, SurveySession
 from ims.domain.operations.project import Project
+from ims.domain.operations.reservation import BookingEvent, Reservation
 from ims.domain.sites.site import Site, SiteKind, SiteStatus
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.stock.reorder import ReorderLevel
@@ -979,6 +981,46 @@ class SqliteSurveySessions(_Base):
         self._update_versioned(_record_row(session, _SESSION_JSON))
 
 
+_RESERVATION_JSON = frozenset({"asset_ids", "kit_ids"})
+
+
+class SqliteReservations(_Base):
+    table, label = s.reservations, "reservation"
+    _read = staticmethod(_record_of(Reservation, _RESERVATION_JSON))
+
+    def get(self, reservation_id: ReservationId) -> Reservation | None:
+        return self._one(s.reservations.c.id == str(reservation_id), self._read)
+
+    def for_project(self, project_id: ProjectId) -> list[Reservation]:
+        t = s.reservations
+        query = select(t).where(t.c.project_id == str(project_id))
+        return self._many(query.order_by(t.c.starts_on, t.c.requested_at, t.c.id), self._read)
+
+    def list(self) -> list[Reservation]:
+        t = s.reservations
+        return self._many(select(t).order_by(t.c.starts_on, t.c.requested_at, t.c.id), self._read)
+
+    def add(self, reservation: Reservation) -> None:
+        self._insert(_record_row(reservation, _RESERVATION_JSON))
+
+    def update(self, reservation: Reservation) -> None:
+        self._update_versioned(_record_row(reservation, _RESERVATION_JSON))
+
+
+class SqliteBookings(_Base):
+    table, label = s.booking_events, "booking"
+    _read = staticmethod(_record_of(BookingEvent, frozenset()))
+
+    def for_asset(self, asset_id: AssetId) -> list[BookingEvent]:
+        t = s.booking_events
+        return self._many(
+            select(t).where(t.c.asset_id == str(asset_id)).order_by(t.c.sequence), self._read
+        )
+
+    def append(self, event: BookingEvent) -> None:
+        self._append_sequenced(_record_row(event, frozenset()), "asset_id")
+
+
 # ------------------------------------------------------------------ audit & commands
 
 
@@ -1080,6 +1122,8 @@ def sqlite_storage(engine: Engine) -> Storage:
         deployments=SqliteDeployments(engine),
         sorties=SqliteSorties(engine),
         survey_sessions=SqliteSurveySessions(engine),
+        reservations=SqliteReservations(engine),
+        bookings=SqliteBookings(engine),
         audit=SqliteAudit(engine),
         commands=SqliteCommandLog(engine),
     )

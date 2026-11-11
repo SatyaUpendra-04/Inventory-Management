@@ -4,6 +4,18 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 6 (Reservations)
+- **Reservations** page: requests waiting for approval, what is booked, and a four-week **calendar** by equipment or by project (booked, requested and out-on-a-project bars; this week, previous and next week)
+- **Reserve equipment** for a project's dates: kits (every member is booked), extra equipment and GCP banners, with a live check of everything that clashes: another booking (blocks), retired items (blocks), competing requests, equipment out with another project, grounded or limited items, items in maintenance, documents missing or expiring before the job ends, incomplete kits, and GCP banners that would fall to the reorder level or run short
+- **Approval:** crew requests wait for an administrator, who approves (books every item) or rejects with a reason; an administrator's own booking is confirmed straight away; the requester or an administrator can cancel
+- **Double-booking is impossible:** each item has its own booking ledger; of two approvals racing for the same item only one can win, and the other books nothing (ADR-0008)
+- **Check out now** from an approved reservation: project, kits, equipment and GCP banners are filled in; the reservation is marked checked out and its bookings released. Other projects' bookings block a check-out on those days
+- Project sheet lists the project's reservations, with **Reserve equipment**
+- **GCP stock:** *Booked* and *Free* columns; a store whose bookings take it to or below its reorder level is flagged
+- **Stocktake:** count every store at once and see the variance report (records, counted, difference); differences are logged as adjustments
+- Database migration 0005 (reservations, booking ledger, the reservation a deployment fulfils)
+- ADR-0008
+
 ### Added — Sprint 5 (Projects, deployments & field logs)
 - **Projects** page: survey jobs with site, client, dates, chief pilot (must hold a valid DGCA certificate) and lead surveyor; suggested codes such as PRJ-KJR-2611; open / completed / cancelled filters; complete, cancel, reopen and remove
 - **Check out equipment** to a project: choose kits (every member goes), extra equipment, crew and GCP banners. A live readiness check lists everything that stops it: grounded or retired items, items already out or in maintenance, missing or expired UIN, insurance or calibration, grounded parts fitted to a drone, a drone without a licensed pilot, pilots with expired certificates, too few GCP banners. Incomplete kits and certificates about to expire are warnings

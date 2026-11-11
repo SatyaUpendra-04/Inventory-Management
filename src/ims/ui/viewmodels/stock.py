@@ -27,13 +27,14 @@ KIND_LABELS = {
     MovementKind.WRITTEN_OFF: "Written off",
     MovementKind.ADJUSTED: "Count adjustment",
 }
-_SITE_ROLES = ("siteId", "site", "onHand", "level", "statusKind", "statusLabel")
+_SITE_ROLES = ("siteId", "site", "onHand", "booked", "free", "level", "statusKind", "statusLabel")
 _MOVE_ROLES = ("when", "kind", "site", "quantity", "reason", "by")
 
 
 class StockViewModel(QObject):
     changed = Signal()
     saved = Signal(str)
+    varianceChanged = Signal()  # noqa: N815
 
     def __init__(
         self,
@@ -54,6 +55,7 @@ class StockViewModel(QObject):
         self._low = 0
         self._error = ""
         self._site_choices: list[dict[str, str]] = []
+        self._variance: list[dict[str, Any]] = []
         session.signedIn.connect(self.refresh)
 
     def _sites_get(self) -> DictListModel:
@@ -77,6 +79,10 @@ class StockViewModel(QObject):
     def _can_manage_get(self) -> bool:
         return self._session.can("stock.manage")
 
+    def _variance_get(self) -> list[dict[str, Any]]:
+        return list(self._variance)
+
+    variance = Property(list, _variance_get, notify=varianceChanged)
     sites = Property(QObject, _sites_get, constant=True)
     movements = Property(QObject, _moves_get, constant=True)
     total = Property(int, _total_get, notify=changed)
@@ -116,10 +122,15 @@ class StockViewModel(QObject):
                 None,
             )
             users: dict[Any, str] = {}
+            booked = self._sv.reservations.gcp_booked(actor)
             rows = []
             for row in self._sv.stock.by_site(actor, self._item_type):
                 site = sites.get(row.location_id)
                 kind, label = ("danger", "Reorder") if row.low else ("success", "OK")
+                free = row.on_hand - booked.get(row.location_id, 0)
+                if not row.low and row.reorder_level is not None and free <= row.reorder_level:
+                    # Enough on the shelf today, but promised banners will take it under.
+                    kind, label = "warning", "Bookings go below level"
                 if row.reorder_level is None:
                     kind, label = "neutral", "No level set"
                 rows.append(
@@ -127,6 +138,8 @@ class StockViewModel(QObject):
                         "siteId": str(row.location_id),
                         "site": site.label if site else "Unknown site",
                         "onHand": row.on_hand,
+                        "booked": booked.get(row.location_id, 0),
+                        "free": row.on_hand - booked.get(row.location_id, 0),
                         "level": "" if row.reorder_level is None else str(row.reorder_level),
                         "statusKind": kind,
                         "statusLabel": label,
@@ -263,3 +276,41 @@ class StockViewModel(QObject):
             )
 
         self._run(work, "Reorder level saved")
+
+    @Slot(dict, str)
+    def stocktake(self, counts: dict[str, Any], note: str) -> None:
+        """Counts several stores at once; the variance report appears in ``variance``."""
+        values = {k: v for k, v in counts.items() if str(v).strip() != ""}
+
+        def work() -> list[dict[str, Any]]:
+            parsed = {LocationId(uuid.UUID(k)): self._quantity(str(v)) for k, v in values.items()}
+            report = self._sv.stock.stocktake(
+                self._session.context(), self._item_type, parsed, note
+            )
+            names = {s["value"]: s["label"] for s in self._site_choices}
+            return [
+                {"site": names.get(str(r.location_id), ""), "expected": r.expected,
+                 "counted": r.counted, "variance": f"{r.variance:+d}" if r.variance else "0",
+                 "kind": "success" if r.variance == 0 else "warning"}
+                for r in report
+            ]  # fmt: skip
+
+        def done(report: list[dict[str, Any]]) -> None:
+            self._variance = report
+            self.varianceChanged.emit()
+            changed = sum(1 for r in report if r["variance"] != "0")
+            self.saved.emit(
+                "Stocktake recorded: every store matches"
+                if not changed
+                else f"Stocktake recorded: {changed} store(s) adjusted"
+            )
+            self.refresh()
+
+        self._error = ""
+        self.changed.emit()
+        self._tasks.submit(work, done, self._fail)
+
+    @Slot()
+    def clearVariance(self) -> None:  # noqa: N802
+        self._variance = []
+        self.varianceChanged.emit()

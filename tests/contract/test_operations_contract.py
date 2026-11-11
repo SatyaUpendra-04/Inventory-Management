@@ -161,3 +161,58 @@ class TestDeploymentsAndLogs:
         assert storage.survey_sessions.get(session.id) == updated
         with pytest.raises(AlreadyExists):
             storage.survey_sessions.add(session)
+
+
+class TestReservationsAndBookings:
+    def test_round_trip_and_ledger_sequence(self, storage: Storage) -> None:
+        from ims.domain.common.ids import CommandId, ReservationId
+        from ims.domain.operations.reservation import (
+            BookingChange,
+            BookingEvent,
+            Reservation,
+            ReservationStatus,
+        )
+
+        site = _site(storage, "KJR-MINE")
+        project = _project(storage, site, "kjr-2611")
+        drone = _asset(storage, "DRONE_AIRFRAME", "DRN-0001")
+        later = Reservation(
+            id=ReservationId(uuid7()), project_id=project.id, asset_ids=(drone.id,),
+            kit_ids=(KitId(uuid7()),), starts_on=DAY + timedelta(days=5),
+            ends_on=DAY + timedelta(days=9), gcp_quantity=10, gcp_site_id=site.id,
+            requested_by=UserId(uuid7()), requested_at=START,
+        )  # fmt: skip
+        sooner = later.model_copy(update={"id": ReservationId(uuid7()), "starts_on": DAY,
+                                          "ends_on": DAY + timedelta(days=2)})  # fmt: skip
+        storage.reservations.add(later)
+        storage.reservations.add(sooner)
+        assert storage.reservations.get(later.id) == later
+        assert [r.id for r in storage.reservations.list()] == [sooner.id, later.id]
+        assert [r.id for r in storage.reservations.for_project(project.id)] == [sooner.id, later.id]
+        with pytest.raises(AlreadyExists):
+            storage.reservations.add(later)
+        approved = later.next_version(status=ReservationStatus.APPROVED, decided_by=UserId(uuid7()),
+                                      decided_at=START)  # fmt: skip
+        storage.reservations.update(approved)
+        assert storage.reservations.get(later.id) == approved
+        with pytest.raises(ConflictError):
+            storage.reservations.update(approved)
+
+        def event(seq: int, change: BookingChange) -> BookingEvent:
+            return BookingEvent(
+                id=EntryId(uuid7()), asset_id=drone.id, sequence=seq, change=change,
+                reservation_id=later.id, project_id=project.id, starts_on=later.starts_on,
+                ends_on=later.ends_on, recorded_at=START, recorded_by=UserId(uuid7()),
+                command_id=CommandId(uuid7()),
+            )  # fmt: skip
+
+        booked = event(1, BookingChange.BOOKED)
+        storage.bookings.append(booked)
+        with pytest.raises(ConflictError):  # a second writer at the same sequence loses
+            storage.bookings.append(event(1, BookingChange.BOOKED))
+        with pytest.raises(AlreadyExists):
+            storage.bookings.append(booked)
+        released = event(2, BookingChange.RELEASED)
+        storage.bookings.append(released)
+        assert storage.bookings.for_asset(drone.id) == [booked, released]
+        assert storage.bookings.for_asset(AssetId(uuid7())) == []

@@ -26,11 +26,20 @@ from ims.domain.identity.user import User
 from ims.domain.operations.deployment import Deployment, DeploymentState
 from ims.domain.operations.field_logs import SurveyMode
 from ims.domain.operations.project import PROJECT_TRANSITIONS, Project, ProjectStatus
+from ims.domain.operations.reservation import ReservationStatus, booking_label
 from ims.ui.app_services import Services
 from ims.ui.models.dict_list import DictListModel
 from ims.ui.tasks import TaskQueue
 from ims.ui.viewmodels.forms import describe_error, local_time, optional_date, text
 from ims.ui.viewmodels.session import SessionViewModel
+
+RESERVATION_STATUS = {
+    ReservationStatus.REQUESTED: ("warning", "Waiting for approval"),
+    ReservationStatus.APPROVED: ("success", "Booked"),
+    ReservationStatus.REJECTED: ("danger", "Rejected"),
+    ReservationStatus.CANCELLED: ("neutral", "Cancelled"),
+    ReservationStatus.FULFILLED: ("info", "Checked out"),
+}
 
 PROJECT_STATUS = {
     ProjectStatus.PLANNED: ("info", "Planned"),
@@ -645,6 +654,18 @@ class ProjectsViewModel(QObject):
             ],
             "sorties": sorties,
             "sessions": sessions,
+            "reservations": [
+                {
+                    "reservationId": str(r.id),
+                    "dates": booking_label("", r.starts_on, r.ends_on).lstrip(", "),
+                    "items": ", ".join(tag(a) for a in r.asset_ids) or "GCP banners only",
+                    "gcp": r.gcp_quantity,
+                    "statusKind": RESERVATION_STATUS[r.status][0],
+                    "statusLabel": RESERVATION_STATUS[r.status][1],
+                }
+                for r in self._sv.reservations.list_reservations(actor)
+                if r.project_id == p.id
+            ],
             "updatedAt": local_time(self._sv.clock.now()),
         }
 

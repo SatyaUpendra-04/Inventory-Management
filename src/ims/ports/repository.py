@@ -38,6 +38,7 @@ from ims.domain.common.ids import (
     KitTemplateId,
     LocationId,
     ProjectId,
+    ReservationId,
     SortieId,
     SurveySessionId,
     UserId,
@@ -48,6 +49,7 @@ from ims.domain.kits import Kit, KitTemplate
 from ims.domain.operations.deployment import Deployment
 from ims.domain.operations.field_logs import Sortie, SurveySession
 from ims.domain.operations.project import Project
+from ims.domain.operations.reservation import BookingEvent, Reservation
 from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.stock.reorder import ReorderLevel
@@ -207,6 +209,27 @@ class SurveySessionRepository(Protocol):
     def update(self, session: SurveySession) -> None: ...
 
 
+class ReservationRepository(Protocol):
+    def get(self, reservation_id: ReservationId) -> Reservation | None: ...
+    def for_project(self, project_id: ProjectId) -> list[Reservation]:
+        """Earliest start first."""
+        ...
+
+    def list(self) -> list[Reservation]:
+        """Earliest start first."""
+        ...
+
+    def add(self, reservation: Reservation) -> None: ...
+    def update(self, reservation: Reservation) -> None: ...
+
+
+class BookingRepository(Protocol):
+    """Per-asset booking ledger; the sequence rule makes double-booking impossible."""
+
+    def for_asset(self, asset_id: AssetId) -> list[BookingEvent]: ...
+    def append(self, event: BookingEvent) -> None: ...
+
+
 class AuditRepository(Protocol):
     def append(self, entry: AuditEntry) -> None: ...
     def for_entity(self, entity: str, entity_id: str) -> list[AuditEntry]: ...
@@ -249,5 +272,7 @@ class Storage:
     deployments: DeploymentRepository
     sorties: SortieRepository
     survey_sessions: SurveySessionRepository
+    reservations: ReservationRepository
+    bookings: BookingRepository
     audit: AuditRepository
     commands: CommandLog

@@ -121,7 +121,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** a full project cycle works and every hour and cycle lands in the usage ledger.
 **Result:** Projects and Deployments pages; check-out with a live readiness check (condition, custody, documents, fitted parts, DGCA certificates, GCP stock); compensating multi-item check-out (ADR-0007); flight logs feeding hours, landings and cycles to drones, fitted parts, batteries and PPK bases; survey sessions with base/rover roles; voiding that reverses usage exactly; returns with per-item condition and GCP returned vs used; Assigned / Completed project tabs for pilots and surveyors with their own role and logged work. Migration 0004. 461 tests, 91% coverage; domain 99%; zero QML warnings.
 
-### Sprint 6 — Reservations
+### Sprint 6 — Reservations ✅ (done 2026-11-12)
 - Reserve assets/kits for a date range against a project
 - Conflict detection: overlaps with reservations, deployments, planned maintenance and expiring documents
 - Admin approval / rejection
@@ -131,6 +131,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - Stock count (stocktake) with variance report
 
 **Done when:** double-booking is impossible, reservations flow into deployments, and GCP stock never runs out unnoticed.
+**Result:** Reservations page with list and four-week calendar (by equipment, by project); requests with a live conflict check; approval books each item in a per-item sequenced ledger so concurrent approvals cannot double-book (ADR-0008); other projects' bookings block check-out; check-out from a reservation fulfils it; GCP booked/free per store with reorder warnings; stocktake with variance report. Migration 0005. 487 tests, 90% coverage; domain 99%; zero QML warnings.
 
 ### Sprint 7 — Airworthiness & maintenance
 - Maintenance programme per asset model: tasks due by hours, cycles or calendar, whichever comes first, with tolerances
@@ -228,7 +229,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | 3 | 2 | Accounts, users, sites ✅ |
 | 4 | 2 | Asset registry, configuration, compliance ✅ |
 | 5 | 2 | Projects, deployments, field logs ✅ |
-| 6 | 2 | Reservations |
+| 6 | 2 | Reservations ✅ |
 | 7 | 2 | Airworthiness & maintenance |
 | 8 | 2 | Battery lifecycle & survey equipment |
 | 9 | 2 | Stats, reports, forecasting |

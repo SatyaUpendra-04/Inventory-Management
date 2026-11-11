@@ -28,6 +28,7 @@ from ims.domain.common.ids import (
     KitTemplateId,
     LocationId,
     ProjectId,
+    ReservationId,
     SortieId,
     SurveySessionId,
     UserId,
@@ -37,6 +38,7 @@ from ims.domain.kits import Kit, KitTemplate
 from ims.domain.operations.deployment import Deployment
 from ims.domain.operations.field_logs import Sortie, SurveySession
 from ims.domain.operations.project import Project
+from ims.domain.operations.reservation import BookingEvent, Reservation
 from ims.domain.sites.site import Site
 from ims.domain.stock.ledger import StockMovement
 from ims.domain.stock.reorder import ReorderLevel
@@ -498,6 +500,37 @@ class MemorySurveySessions:
         self._t.update(session)
 
 
+class MemoryReservations:
+    def __init__(self) -> None:
+        self._t: _Table[Reservation] = _Table("reservation", {})
+
+    def get(self, reservation_id: ReservationId) -> Reservation | None:
+        return self._t.rows.get(reservation_id)
+
+    def for_project(self, project_id: ProjectId) -> list[Reservation]:
+        return [r for r in self.list() if r.project_id == project_id]
+
+    def list(self) -> list[Reservation]:
+        return sorted(self._t.rows.values(), key=lambda r: (r.starts_on, r.requested_at, str(r.id)))
+
+    def add(self, reservation: Reservation) -> None:
+        self._t.add(reservation)
+
+    def update(self, reservation: Reservation) -> None:
+        self._t.update(reservation)
+
+
+class MemoryBookings:
+    def __init__(self) -> None:
+        self._s: _Stream[BookingEvent] = _Stream(lambda e: e.asset_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[BookingEvent]:
+        return self._s.get(asset_id)
+
+    def append(self, event: BookingEvent) -> None:
+        self._s.append(event, event.id, event.sequence)
+
+
 class MemoryCommandLog:
     def __init__(self) -> None:
         self._records: dict[CommandId, CommandRecord] = {}
@@ -530,6 +563,8 @@ def memory_storage() -> Storage:
         deployments=MemoryDeployments(),
         sorties=MemorySorties(),
         survey_sessions=MemorySurveySessions(),
+        reservations=MemoryReservations(),
+        bookings=MemoryBookings(),
         audit=MemoryAudit(),
         commands=MemoryCommandLog(),
     )

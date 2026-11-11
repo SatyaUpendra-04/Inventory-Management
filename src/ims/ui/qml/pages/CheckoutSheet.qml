@@ -10,10 +10,13 @@ Sheet {
     readonly property var c: Deployments.choices
     readonly property var r: Deployments.readiness
     property string presetProject: ""
+    property string reservationId: ""     // set when checking out an approved reservation
+    property var presetGcp: ({})
 
     width: Math.min(820, parent ? parent.width - 64 : 820)
     title: qsTr("Check out equipment")
-    subtitle: qsTr("Everything is checked before it goes: condition, documents, certificates and stock.")
+    subtitle: reservationId ? qsTr("From the approved reservation. Add the crew; you can still change the equipment.")
+                            : qsTr("Everything is checked before it goes: condition, documents, certificates and stock.")
 
     function iso(picker) { return picker.hasDate ? Qt.formatDate(picker.selectedDate, "yyyy-MM-dd") : "" }
     function values() {
@@ -21,12 +24,14 @@ Sheet {
             projectId: project.currentValue || "", deployedOn: iso(day),
             kitIds: kits.selected, assetIds: equipment.selected, crewIds: crew.selected,
             gcpQuantity: gcpStore.currentValue ? gcp.text : "0", gcpSiteId: gcpStore.currentValue || "",
-            notes: notes.text
+            notes: notes.text, reservationId: reservationId
         }
     }
     function recheck() { if (sheet.opened) checkTimer.restart() }
 
     function openFor(projectId) {
+        reservationId = ""
+        presetGcp = ({})
         presetProject = projectId || ""
         Deployments.clearError()
         Deployments.loadChoices()
@@ -35,8 +40,18 @@ Sheet {
         day.hasDate = true; day.selectedDate = new Date()
         open()
     }
+    // Starts from an approved reservation: its project, kits, equipment and GCP banners.
+    function openFromReservation(r) {
+        openFor(r.projectId)
+        reservationId = r.reservationId
+        kits.selected = r.kitIds || []
+        equipment.selected = r.extraAssetIds || []
+        presetGcp = { site: r.gcpSiteId || "", quantity: r.gcp ? String(r.gcp) : "" }
+        gcp.text = presetGcp.quantity
+    }
     onCChanged: {
         if (presetProject) project.selectValue(presetProject)
+        if (presetGcp.site) gcpStore.selectValue(presetGcp.site)
         recheck()
     }
 

@@ -22,6 +22,7 @@ from ims.ui.viewmodels.equipment import EquipmentViewModel
 from ims.ui.viewmodels.kits import KitsViewModel
 from ims.ui.viewmodels.people import PeopleViewModel
 from ims.ui.viewmodels.projects import ProjectsViewModel
+from ims.ui.viewmodels.reservations import ReservationsViewModel
 from ims.ui.viewmodels.session import SessionViewModel
 from ims.ui.viewmodels.shell import ShellViewModel
 from ims.ui.viewmodels.sites import SitesViewModel
@@ -47,6 +48,7 @@ class UiContext:
     stock: StockViewModel
     projects: ProjectsViewModel
     deployments: DeploymentsViewModel
+    reservations: ReservationsViewModel
     sample_table: SortableModel
 
 
@@ -82,16 +84,17 @@ def create_engine(
     stock = StockViewModel(session, services, tasks, engine)
     projects = ProjectsViewModel(session, services, tasks, engine)
     deployments = DeploymentsViewModel(session, services, tasks, engine)
+    reservations = ReservationsViewModel(session, services, tasks, engine)
     sample_table = SortableModel(SampleEquipmentModel(engine), engine)
 
     session.signedIn.connect(lambda: shell.set_permissions(session.permission_codes()))
     session.signedOut.connect(lambda: shell.set_permissions(()))
     people.saved.connect(lambda message: toasts.show("success", message, ""))
-    for model in (sites, equipment, kits, stock, projects, deployments):
+    for model in (sites, equipment, kits, stock, projects, deployments, reservations):
         model.saved.connect(lambda message: toasts.show("success", message, ""))
     # Checking out, returning and logging change equipment, stock and project views.
-    for source in (projects, deployments):
-        for target in (projects, deployments, equipment, stock):
+    for source in (projects, deployments, reservations):
+        for target in (projects, deployments, reservations, equipment, stock):
             if target is not source:
                 source.saved.connect(lambda _message, t=target: t.refresh())
 
@@ -109,6 +112,7 @@ def create_engine(
         "Stock": stock,
         "Projects": projects,
         "Deployments": deployments,
+        "Reservations": reservations,
         "SampleTable": sample_table,
         "AppVersion": version,
         "AppEnvironment": environment,
@@ -131,6 +135,7 @@ def create_engine(
         stock,
         projects,
         deployments,
+        reservations,
         sample_table,
     )
 

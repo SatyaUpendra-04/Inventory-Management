@@ -17,6 +17,7 @@ from ims.domain.common.ids import (
     KitId,
     LocationId,
     ProjectId,
+    ReservationId,
     UserId,
 )
 from ims.domain.operations.deployment import DeploymentState, ReturnCondition, ReturnLine
@@ -237,6 +238,22 @@ class DeploymentsViewModel(QObject):
                 and not s.item_type.is_component
                 and s.asset.id not in in_kit
             ]
+            # For bookings ahead: anything not retired, even if it is out or in the workshop now.
+            bookable = [
+                {
+                    "value": str(s.asset.id),
+                    "label": s.asset.asset_tag,
+                    "detail": s.item_type.name,
+                    "kind": SERVICEABILITY[s.status.serviceability][0],
+                    "status": SERVICEABILITY[s.status.serviceability][1]
+                    if s.status.custody is not Custody.DEPLOYED
+                    else "Out now",
+                }
+                for s in sorted(summaries, key=lambda s: s.asset.asset_tag)
+                if not s.item_type.is_component
+                and s.asset.id not in in_kit
+                and s.status.serviceability.value != "retired"
+            ]
             kits = []
             for overview in self._sv.kits.list_kits(actor):
                 missing = (
@@ -279,6 +296,7 @@ class DeploymentsViewModel(QObject):
                 "projects": projects,
                 "kits": kits,
                 "equipment": equipment,
+                "bookable": bookable,
                 "crew": crew,
                 "stores": [{"value": "", "label": "No GCP banners"}, *stores],
                 "sites": [
@@ -315,7 +333,10 @@ class DeploymentsViewModel(QObject):
             except RuleViolation as exc:
                 return {"blockers": list(exc.problems), "warnings": [], "items": 0, "ready": False}
             day = optional_date(fields, "deployedOn")
-            report = self._sv.deployments.readiness(actor, day=day, **draft)
+            project = _id(fields.get("projectId"))
+            report = self._sv.deployments.readiness(
+                actor, day=day, project_id=ProjectId(project) if project else None, **draft
+            )
             return {
                 "blockers": list(report.readiness.blockers),
                 "warnings": list(report.readiness.warnings),
@@ -344,6 +365,9 @@ class DeploymentsViewModel(QObject):
                 project_id=ProjectId(project),
                 deployed_on=optional_date(fields, "deployedOn"),
                 notes=text(fields, "notes"),
+                reservation_id=ReservationId(r)
+                if (r := _id(fields.get("reservationId")))
+                else None,
                 **self._draft(fields),
             )
 

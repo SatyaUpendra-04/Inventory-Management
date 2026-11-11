@@ -25,6 +25,7 @@ KitTemplateId = NewType("KitTemplateId", uuid.UUID)
 DeploymentId = NewType("DeploymentId", uuid.UUID)
 SortieId = NewType("SortieId", uuid.UUID)
 SurveySessionId = NewType("SurveySessionId", uuid.UUID)
+ReservationId = NewType("ReservationId", uuid.UUID)
 
 _VERSION_7 = 0x7
 _VARIANT_RFC = 0b10

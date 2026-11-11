@@ -93,6 +93,54 @@ Sheet {
 
         Divider {}
 
+        // ------------------------------------------------------------ reservations
+        Item {
+            width: parent.width
+            height: bookHeading.height
+            Heading { id: bookHeading; text: qsTr("Reservations") }
+            AppButton {
+                visible: Reservations.canRequest && !!sheet.d.isOpen
+                anchors.right: parent.right
+                compact: true
+                iconName: "calendar"
+                text: qsTr("Reserve equipment")
+                onClicked: reservationSheet.openNew(sheet.d.projectId)
+            }
+        }
+        Txt { visible: (sheet.d.reservations || []).length === 0; text: qsTr("Nothing reserved for this project."); muted: true }
+        Repeater {
+            model: sheet.d.reservations || []
+            delegate: AbstractButton {
+                id: booking
+                required property var modelData
+                width: parent.width
+                height: 36
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                Accessible.name: modelData.dates
+                onClicked: reservationSheet.show(modelData.reservationId)
+                background: Rectangle {
+                    radius: Theme.radius.sm
+                    color: booking.hovered ? Theme.colors.elementHover : Theme.colors.element
+                    FocusRing { show: booking.visualFocus }
+                }
+                contentItem: Item {
+                    Row {
+                        x: Theme.space.sm
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.space.md
+                        Txt { width: 120; text: booking.modelData.dates; variant: "bodyStrong" }
+                        Txt { width: 420; elide: Text.ElideRight; muted: true
+                              text: booking.modelData.items + (booking.modelData.gcp ? qsTr("  ·  %1 GCP").arg(booking.modelData.gcp) : "") }
+                    }
+                    StatusPill { anchors.right: parent.right; anchors.rightMargin: Theme.space.sm; anchors.verticalCenter: parent.verticalCenter
+                                 kind: booking.modelData.statusKind; text: booking.modelData.statusLabel }
+                }
+            }
+        }
+
+        Divider {}
+
         // ------------------------------------------------------------ deployments
         Item {
             width: parent.width
@@ -270,6 +318,7 @@ Sheet {
     actions: [ AppButton { text: qsTr("Close"); onClicked: sheet.close() } ]
 
     CheckoutSheet { id: checkout }
+    ReservationSheet { id: reservationSheet }
     ReturnSheet { id: returnSheet }
     SortieSheet { id: sortieSheet }
     SurveySheet { id: surveySheet }

@@ -301,6 +301,7 @@ deployments = Table(
     Column("gcp_returned", Integer, nullable=False),
     Column("gcp_consumed", Integer, nullable=False),
     Column("return_site_id", String(ID)),
+    Column("reservation_id", String(ID)),
 )
 
 sorties = Table(
@@ -351,6 +352,45 @@ survey_sessions = Table(
     Column("usage_entries", Text, nullable=False),
     Column("voided_at", String(32)),
     Column("void_reason", Text, nullable=False),
+)
+
+reservations = Table(
+    "reservations",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("project_id", String(ID), ForeignKey("projects.id"), nullable=False, index=True),
+    Column("asset_ids", Text, nullable=False),
+    Column("kit_ids", Text, nullable=False),
+    Column("starts_on", String(10), nullable=False),
+    Column("ends_on", String(10), nullable=False),
+    Column("gcp_quantity", Integer, nullable=False),
+    Column("gcp_site_id", String(ID)),
+    Column("notes", Text, nullable=False),
+    Column("requested_by", String(ID), nullable=False),
+    Column("requested_at", String(32), nullable=False),
+    Column("status", String(16), nullable=False),
+    Column("decided_by", String(ID)),
+    Column("decided_at", String(32)),
+    Column("decision_note", Text, nullable=False),
+    Column("deployment_id", String(ID)),
+)
+
+booking_events = Table(
+    "booking_events",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("asset_id", String(ID), ForeignKey("assets.id"), nullable=False),
+    Column("sequence", Integer, nullable=False),
+    Column("change", String(16), nullable=False),
+    Column("reservation_id", String(ID), ForeignKey("reservations.id"), nullable=False),
+    Column("project_id", String(ID), nullable=False),
+    Column("starts_on", String(10), nullable=False),
+    Column("ends_on", String(10), nullable=False),
+    Column("recorded_at", String(32), nullable=False),
+    Column("recorded_by", String(ID), nullable=False),
+    Column("command_id", String(ID), nullable=False),
+    UniqueConstraint("asset_id", "sequence"),
 )
 
 audit_log = Table(

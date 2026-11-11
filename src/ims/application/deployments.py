@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from ims.application.bookings import booked_elsewhere, fulfil
 from ims.application.context import Actor, CommandContext
 from ims.application.ledgers import append_movement, append_status
 from ims.application.runner import CommandRunner, Outcome, add_once, update_once
@@ -43,6 +44,7 @@ from ims.domain.common.ids import (
     KitId,
     LocationId,
     ProjectId,
+    ReservationId,
     UserId,
 )
 from ims.domain.identity.roles import Permission
@@ -59,6 +61,7 @@ from ims.domain.operations.deployment import (
     return_status_change,
 )
 from ims.domain.operations.project import ProjectStatus
+from ims.domain.operations.reservation import ReservationStatus
 from ims.domain.stock.ledger import MovementKind, position
 from ims.ports.clock import Clock
 from ims.ports.repository import Storage
@@ -115,12 +118,13 @@ class DeploymentService:
         gcp_quantity: int = 0,
         gcp_site_id: LocationId | None = None,
         day: date | None = None,
+        project_id: ProjectId | None = None,
     ) -> ReadinessReport:
         """Everything that would stop this deployment, before anything is written."""
         actor.require(Permission.ASSET_VIEW)
         day = day or self._clock.today()
         chosen, incomplete = self._resolve(asset_ids, kit_ids)
-        assets = [self._asset_readiness(a, day) for a in chosen]
+        assets = [self._asset_readiness(a, day, project_id) for a in chosen]
         crew = [self._crew_member(u) for u in crew_ids]
         available = self._gcp_available(gcp_site_id)
         readiness = check_readiness(
@@ -147,7 +151,9 @@ class DeploymentService:
         gcp_site_id: LocationId | None = None,
         deployed_on: date | None = None,
         notes: str = "",
+        reservation_id: ReservationId | None = None,
     ) -> DeploymentId:
+        """Checks equipment out; with ``reservation_id`` it fulfils that booking."""
         actor = ctx.require_actor()
         actor.require(Permission.DEPLOYMENT_CREATE)
         if gcp_quantity:
@@ -159,7 +165,7 @@ class DeploymentService:
             if plan is None:
                 plan = self._plan(
                     ctx, actor, deployment_id, project_id, asset_ids, kit_ids, crew_ids,
-                    gcp_quantity, gcp_site_id, deployed_on, notes,
+                    gcp_quantity, gcp_site_id, deployed_on, notes, reservation_id,
                 )  # fmt: skip
             if plan.state is DeploymentState.PENDING:
                 try:
@@ -183,7 +189,7 @@ class DeploymentService:
         self, ctx: CommandContext, actor: Actor, deployment_id: DeploymentId,
         project_id: ProjectId, asset_ids: Sequence[AssetId], kit_ids: Sequence[KitId],
         crew_ids: Sequence[UserId], gcp_quantity: int, gcp_site_id: LocationId | None,
-        deployed_on: date | None, notes: str,
+        deployed_on: date | None, notes: str, reservation_id: ReservationId | None = None,
     ) -> Deployment:  # fmt: skip
         project = self._s.projects.get(project_id)
         if project is None or project.is_deleted:
@@ -193,9 +199,17 @@ class DeploymentService:
         day = deployed_on or self._clock.today()
         if day > self._clock.today():
             raise RuleViolation("Equipment cannot be deployed with a date in the future.")
+        if reservation_id is not None:
+            reservation = self._s.reservations.get(reservation_id)
+            if reservation is None:
+                raise NotFound("Reservation not found.")
+            if reservation.project_id != project_id:
+                raise RuleViolation("That reservation is for another project.")
+            if reservation.status is not ReservationStatus.APPROVED:
+                raise RuleViolation(f"That reservation is {reservation.status.value}.")
         report = self.readiness(
             actor, asset_ids=asset_ids, kit_ids=kit_ids, crew_ids=crew_ids,
-            gcp_quantity=gcp_quantity, gcp_site_id=gcp_site_id, day=day,
+            gcp_quantity=gcp_quantity, gcp_site_id=gcp_site_id, day=day, project_id=project_id,
         )  # fmt: skip
         if not report.readiness.ok:
             raise RuleViolation(report.readiness.blockers)
@@ -204,7 +218,7 @@ class DeploymentService:
             kit_ids=tuple(dict.fromkeys(kit_ids)), crew_ids=tuple(crew_ids),
             gcp_quantity=gcp_quantity, gcp_site_id=gcp_site_id if gcp_quantity else None,
             deployed_on=day, created_at=self._clock.now(), created_by=actor.user_id,
-            notes=notes,
+            notes=notes, reservation_id=reservation_id,
         )  # fmt: skip
         add_once(self._s.deployments.add, plan)
         return plan
@@ -236,6 +250,8 @@ class DeploymentService:
         if stored.state is DeploymentState.PENDING:
             out = stored.next_version(state=DeploymentState.OUT)
             update_once(self._s.deployments.update, lambda: self._s.deployments.get(plan.id), out)
+        if plan.reservation_id is not None:
+            fulfil(self._s, self._clock, ctx, actor, plan.reservation_id, plan.id)
 
     def _undo(self, ctx: CommandContext, actor: Actor, plan: Deployment, reason: str) -> None:
         """Compensation: reverses every step this deployment took, newest first."""
@@ -421,7 +437,9 @@ class DeploymentService:
             raise NotFound("Item type not found.")
         return item_type
 
-    def _asset_readiness(self, asset_id: AssetId, day: date) -> AssetReadiness:
+    def _asset_readiness(
+        self, asset_id: AssetId, day: date, project_id: ProjectId | None = None
+    ) -> AssetReadiness:
         asset = self._asset(asset_id)
         item_type = self._type(asset.item_type_id)
         fitted_problems: list[str] = []
@@ -440,6 +458,7 @@ class DeploymentService:
             status=replay(self._s.status_events.for_asset(asset_id)),
             compliance=compliance_problems(item_type, self._s.documents.for_asset(asset_id), day),
             fitted_problems=fitted_problems,
+            booked_elsewhere=booked_elsewhere(self._s, asset_id, day, project_id),
         )
 
     def _crew_member(self, user_id: UserId) -> CrewMember:

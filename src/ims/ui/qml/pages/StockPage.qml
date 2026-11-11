@@ -8,7 +8,8 @@ Item {
     id: page
 
     property var section: ({})
-    readonly property var columns: [0.40, 0.18, 0.18, 0.24]
+    readonly property var columns: [0.32, 0.13, 0.13, 0.13, 0.13, 0.16]
+    readonly property var numeric: [false, true, true, true, true, false]
 
     Component.onCompleted: Stock.refresh()
 
@@ -54,6 +55,8 @@ Item {
             AppButton { iconName: "bell"; text: qsTr("Reorder level"); onClicked: actionSheet.start("level") }
             AppButton { iconName: "minus"; text: qsTr("Write off"); onClicked: actionSheet.start("writeOff") }
             AppButton { iconName: "check"; text: qsTr("Stock count"); onClicked: actionSheet.start("count") }
+            AppButton { iconName: "layers"; text: qsTr("Stocktake"); enabled: Stock.siteChoices().length > 0
+                        onClicked: stocktake.start() }
             AppButton { variant: "primary"; iconName: "plus"; text: qsTr("Receive"); onClicked: actionSheet.start("receive") }
         }
     }
@@ -74,7 +77,7 @@ Item {
             width: parent.width - Theme.space.md * 2
             height: 38
             Repeater {
-                model: [qsTr("Site"), qsTr("On hand"), qsTr("Reorder level"), qsTr("Status")]
+                model: [qsTr("Site"), qsTr("On hand"), qsTr("Booked"), qsTr("Free"), qsTr("Reorder level"), qsTr("Status")]
                 delegate: Txt {
                     required property string modelData
                     required property int index
@@ -84,8 +87,8 @@ Item {
                     variant: "caption"
                     font.weight: Theme.type.semibold
                     muted: true
-                    horizontalAlignment: index === 1 || index === 2 ? Text.AlignRight : Text.AlignLeft
-                    rightPadding: index === 1 || index === 2 ? Theme.space.lg : 0
+                    horizontalAlignment: page.numeric[index] ? Text.AlignRight : Text.AlignLeft
+                    rightPadding: page.numeric[index] ? Theme.space.lg : 0
                 }
             }
         }
@@ -105,8 +108,12 @@ Item {
                         anchors.fill: parent
                         Txt { width: parent.width * page.columns[0]; height: 46; text: model.site; elide: Text.ElideRight }
                         Txt { width: parent.width * page.columns[1]; height: 46; text: model.onHand; variant: "bodyStrong"; horizontalAlignment: Text.AlignRight; rightPadding: Theme.space.lg; font.features: { "tnum": 1 } }
-                        Txt { width: parent.width * page.columns[2]; height: 46; text: model.level || "—"; muted: !model.level; horizontalAlignment: Text.AlignRight; rightPadding: Theme.space.lg; font.features: { "tnum": 1 } }
-                        Item { width: parent.width * page.columns[3]; height: 46
+                        Txt { width: parent.width * page.columns[2]; height: 46; text: model.booked || "—"; muted: !model.booked; horizontalAlignment: Text.AlignRight; rightPadding: Theme.space.lg; font.features: { "tnum": 1 } }
+                        Txt { width: parent.width * page.columns[3]; height: 46; text: model.free; horizontalAlignment: Text.AlignRight; rightPadding: Theme.space.lg; font.features: { "tnum": 1 }
+                              color: model.free < 0 ? Theme.colors.dangerText : Theme.colors.text
+                              font.weight: model.free < 0 ? Theme.type.semibold : Theme.type.regular }
+                        Txt { width: parent.width * page.columns[4]; height: 46; text: model.level || "—"; muted: !model.level; horizontalAlignment: Text.AlignRight; rightPadding: Theme.space.lg; font.features: { "tnum": 1 } }
+                        Item { width: parent.width * page.columns[5]; height: 46
                                StatusPill { anchors.verticalCenter: parent.verticalCenter; kind: model.statusKind; text: model.statusLabel } }
                     }
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.colors.divider; opacity: 0.6 }
@@ -210,6 +217,102 @@ Item {
                     else if (actionSheet.mode === "count") Stock.count(site, quantity.text, note.text)
                     else Stock.setReorderLevel(site, quantity.text)
                 }
+            }
+        ]
+    }
+
+    // ------------------------------------------------------------ stocktake
+    Sheet {
+        id: stocktake
+        objectName: "stocktakeSheet"
+        property var counts: ({})
+        readonly property bool reported: Stock.variance.length > 0
+        width: 560
+        title: reported ? qsTr("Stocktake variance") : qsTr("Stocktake")
+        subtitle: reported ? qsTr("Records now match the count. Differences were logged as adjustments.")
+                           : qsTr("Count every store at once. Leave a store blank to skip it.")
+
+        function start() {
+            Stock.clearError()
+            Stock.clearVariance()
+            counts = ({})
+            stocktakeNote.text = ""
+            open()
+        }
+        function setCount(siteId, value) { var c = Object.assign({}, counts); c[siteId] = value; counts = c }
+        readonly property int entered: Object.keys(counts).filter(function (k) { return String(counts[k]).trim() !== "" }).length
+
+        Column {
+            width: parent.width
+            spacing: Theme.space.sm
+
+            // Entry: one row per store
+            Repeater {
+                model: stocktake.reported ? [] : (stocktake.opened ? Stock.siteChoices() : [])
+                delegate: Item {
+                    required property var modelData
+                    width: parent.width
+                    height: 40
+                    Txt { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 150; text: modelData.label; elide: Text.ElideRight }
+                    AppTextField {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 130
+                        placeholder: qsTr("Counted")
+                        onTextChanged: stocktake.setCount(modelData.value, text)
+                    }
+                }
+            }
+            AppTextField { id: stocktakeNote; visible: !stocktake.reported; width: parent.width; label: qsTr("Note (optional)"); placeholder: qsTr("e.g. Quarter-end count") }
+
+            // Variance report
+            Row {
+                visible: stocktake.reported
+                width: parent.width
+                Repeater {
+                    model: [qsTr("Store"), qsTr("Records"), qsTr("Counted"), qsTr("Difference")]
+                    delegate: Txt {
+                        required property string modelData
+                        required property int index
+                        width: index === 0 ? parent.width * 0.46 : parent.width * 0.18
+                        text: modelData
+                        variant: "caption"
+                        font.weight: Theme.type.semibold
+                        muted: true
+                        horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignRight
+                    }
+                }
+            }
+            Repeater {
+                model: Stock.variance
+                delegate: Rectangle {
+                    required property var modelData
+                    width: parent.width
+                    height: 36
+                    radius: Theme.radius.sm
+                    color: modelData.kind === "warning" ? Theme.colors.warningBg : Theme.colors.element
+                    Row {
+                        anchors.fill: parent
+                        Txt { width: parent.width * 0.46; height: 36; leftPadding: Theme.space.sm; text: modelData.site; elide: Text.ElideRight }
+                        Txt { width: parent.width * 0.18; height: 36; text: modelData.expected; horizontalAlignment: Text.AlignRight; font.features: { "tnum": 1 } }
+                        Txt { width: parent.width * 0.18; height: 36; text: modelData.counted; horizontalAlignment: Text.AlignRight; font.features: { "tnum": 1 } }
+                        Txt { width: parent.width * 0.18; height: 36; rightPadding: Theme.space.sm; text: modelData.variance; horizontalAlignment: Text.AlignRight
+                              variant: "bodyStrong"; font.features: { "tnum": 1 }
+                              color: modelData.kind === "warning" ? Theme.colors.warningText : Theme.colors.successText }
+                    }
+                }
+            }
+            ErrorBanner { text: Stock.error }
+        }
+        actions: [
+            AppButton { text: stocktake.reported ? qsTr("Done") : qsTr("Cancel"); onClicked: stocktake.close() },
+            AppButton {
+                visible: !stocktake.reported
+                variant: "primary"
+                text: qsTr("Record stocktake")
+                busy: Tasks.busy
+                enabled: !Tasks.busy && stocktake.entered > 0
+                onClicked: Stock.stocktake(stocktake.counts, stocktakeNote.text)
             }
         ]
     }

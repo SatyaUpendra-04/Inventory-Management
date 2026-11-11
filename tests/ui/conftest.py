@@ -19,6 +19,7 @@ from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
 from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
+from ims.application.reservations import ReservationService
 from ims.application.runner import CommandRunner
 from ims.application.sites import SiteService
 from ims.application.stock import StockService
@@ -64,6 +65,7 @@ def services() -> Services:
         projects=ProjectService(storage, runner, clock),
         deployments=DeploymentService(storage, runner, clock),
         logs=FieldLogService(storage, runner, clock),
+        reservations=ReservationService(storage, runner, clock),
         clock=clock,
     )
 

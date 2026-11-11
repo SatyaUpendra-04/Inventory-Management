@@ -19,7 +19,15 @@ from pydantic import Field, model_validator
 from ims.domain.assets.catalogue import Category
 from ims.domain.assets.status import USABLE, AssetStatus, Custody, Serviceability
 from ims.domain.common.errors import RuleViolation
-from ims.domain.common.ids import AssetId, DeploymentId, KitId, LocationId, ProjectId, UserId
+from ims.domain.common.ids import (
+    AssetId,
+    DeploymentId,
+    KitId,
+    LocationId,
+    ProjectId,
+    ReservationId,
+    UserId,
+)
 from ims.domain.common.model import UtcDateTime, ValueModel, VersionedRecord
 from ims.domain.identity.roles import Role
 from ims.domain.identity.user import PilotLicence
@@ -70,6 +78,7 @@ class Deployment(VersionedRecord):
     gcp_returned: int = Field(default=0, ge=0)
     gcp_consumed: int = Field(default=0, ge=0)
     return_site_id: LocationId | None = None
+    reservation_id: ReservationId | None = None  # the booking this check-out fulfils
 
     @model_validator(mode="after")
     def _rules(self) -> Deployment:
@@ -115,6 +124,9 @@ class AssetReadiness:
     compliance: Sequence[tuple[str, str]] = ()  # (danger | warning, message)
     fitted_problems: Sequence[str] = ()  # e.g. a grounded motor on this airframe
     maintenance_overdue: Sequence[str] = ()  # filled from Sprint 7
+    booked_elsewhere: Sequence[
+        str
+    ] = ()  # e.g. "PRJ-JSP-2612, 10-14 Dec": another project's booking
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +189,8 @@ def check_readiness(
             block(f"{a.tag}: {problem}")
         for task in a.maintenance_overdue:
             block(f"{a.tag}: maintenance overdue ({task}).")
+        for booking in a.booked_elsewhere:
+            block(f"{a.tag} is booked for {booking}.")
 
     if not crew:
         block("Choose the crew.")
