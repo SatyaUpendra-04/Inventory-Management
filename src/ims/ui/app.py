@@ -20,6 +20,7 @@ from ims.ui.theme.manager import ThemeManager
 from ims.ui.viewmodels.deployments import DeploymentsViewModel
 from ims.ui.viewmodels.equipment import EquipmentViewModel
 from ims.ui.viewmodels.kits import KitsViewModel
+from ims.ui.viewmodels.maintenance import MaintenanceViewModel
 from ims.ui.viewmodels.people import PeopleViewModel
 from ims.ui.viewmodels.projects import ProjectsViewModel
 from ims.ui.viewmodels.reservations import ReservationsViewModel
@@ -49,6 +50,7 @@ class UiContext:
     projects: ProjectsViewModel
     deployments: DeploymentsViewModel
     reservations: ReservationsViewModel
+    maintenance: MaintenanceViewModel
     sample_table: SortableModel
 
 
@@ -85,16 +87,19 @@ def create_engine(
     projects = ProjectsViewModel(session, services, tasks, engine)
     deployments = DeploymentsViewModel(session, services, tasks, engine)
     reservations = ReservationsViewModel(session, services, tasks, engine)
+    maintenance = MaintenanceViewModel(session, services, tasks, engine)
     sample_table = SortableModel(SampleEquipmentModel(engine), engine)
 
     session.signedIn.connect(lambda: shell.set_permissions(session.permission_codes()))
     session.signedOut.connect(lambda: shell.set_permissions(()))
     people.saved.connect(lambda message: toasts.show("success", message, ""))
-    for model in (sites, equipment, kits, stock, projects, deployments, reservations):
+    for model in (sites, equipment, kits, stock, projects, deployments, reservations, maintenance):
         model.saved.connect(lambda message: toasts.show("success", message, ""))
+    # Maintenance done from the asset sheet re-reads the open asset.
+    maintenance.saved.connect(lambda _message: equipment.reloadAsset())
     # Checking out, returning and logging change equipment, stock and project views.
-    for source in (projects, deployments, reservations):
-        for target in (projects, deployments, reservations, equipment, stock):
+    for source in (projects, deployments, reservations, maintenance):
+        for target in (projects, deployments, reservations, maintenance, equipment, stock):
             if target is not source:
                 source.saved.connect(lambda _message, t=target: t.refresh())
 
@@ -113,6 +118,7 @@ def create_engine(
         "Projects": projects,
         "Deployments": deployments,
         "Reservations": reservations,
+        "Maintenance": maintenance,
         "SampleTable": sample_table,
         "AppVersion": version,
         "AppEnvironment": environment,
@@ -136,6 +142,7 @@ def create_engine(
         projects,
         deployments,
         reservations,
+        maintenance,
         sample_table,
     )
 

@@ -36,6 +36,7 @@ from ims.ui.viewmodels.forms import (
     optional_decimal,
     text,
 )
+from ims.ui.viewmodels.maintenance import DEFECT_LABELS, due_row
 from ims.ui.viewmodels.session import SessionViewModel
 
 CATEGORY_LABELS = {
@@ -453,18 +454,53 @@ class EquipmentViewModel(QObject):
 
         def work() -> dict[str, Any]:
             overview = self._sv.registry.overview(actor, AssetId(uuid.UUID(asset_id)))
+            maintenance = self._maintenance(actor, AssetId(uuid.UUID(asset_id)))
             loose = (
                 self._sv.registry.loose_components(actor)
                 if overview.item_type.category is Category.DRONE
                 else []
             )
-            return self._detail_dict(overview, permissions, loose)
+            detail = self._detail_dict(overview, permissions, loose)
+            detail["maintenance"] = maintenance
+            return detail
 
         def done(detail: dict[str, Any]) -> None:
             self._detail = detail
             self.detailChanged.emit()
 
         self._tasks.submit(work, done, self._fail)
+
+    @Slot()
+    def reloadAsset(self) -> None:  # noqa: N802
+        """Re-reads the open asset (after maintenance changed it elsewhere)."""
+        if self._detail_id is not None:
+            self.openAsset(str(self._detail_id))
+
+    def _maintenance(self, actor: Any, asset_id: AssetId) -> dict[str, Any]:
+        tasks = [due_row(d) for d in self._sv.maintenance.asset_due(actor, asset_id)]
+        defects = [
+            {"number": d.number, "description": d.description,
+             "stateKind": DEFECT_LABELS[d.state][0], "stateLabel": DEFECT_LABELS[d.state][1],
+             "limitation": d.limitation,
+             "deferredUntil": f"{d.deferred_until:%d %b %Y}" if d.deferred_until else ""}
+            for d in self._sv.maintenance.defects(actor)
+            if d.asset_id == asset_id and d.is_open
+        ]  # fmt: skip
+        order = next(
+            (
+                w
+                for w in self._sv.maintenance.work_orders(actor)
+                if w.asset_id == asset_id and w.is_open
+            ),
+            None,
+        )
+        return {
+            "tasks": tasks,
+            "defects": defects,
+            "grounding": self._sv.maintenance.grounding_reasons(actor, asset_id),
+            "workOrderId": str(order.id) if order else "",
+            "workOrder": f"{order.number} · {order.title}" if order else "",
+        }
 
     @Slot()
     def closeAsset(self) -> None:  # noqa: N802

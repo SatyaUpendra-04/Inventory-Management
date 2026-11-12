@@ -31,21 +31,27 @@ from ims.domain.audit import AuditEntry
 from ims.domain.common.ids import (
     AssetId,
     CommandId,
+    DefectId,
     DeploymentId,
     DocumentId,
     ItemTypeId,
     KitId,
     KitTemplateId,
     LocationId,
+    MaintenanceTaskId,
     ProjectId,
     ReservationId,
     SortieId,
     SurveySessionId,
     UserId,
+    WorkOrderId,
 )
 from ims.domain.common.model import UtcDateTime, ValueModel
 from ims.domain.identity.user import User
 from ims.domain.kits import Kit, KitTemplate
+from ims.domain.maintenance.defects import Defect
+from ims.domain.maintenance.programme import MaintenanceTask, TaskCompletion
+from ims.domain.maintenance.work_orders import WorkOrder
 from ims.domain.operations.deployment import Deployment
 from ims.domain.operations.field_logs import Sortie, SurveySession
 from ims.domain.operations.project import Project
@@ -230,6 +236,42 @@ class BookingRepository(Protocol):
     def append(self, event: BookingEvent) -> None: ...
 
 
+class MaintenanceTaskRepository(Protocol):
+    def get(self, task_id: MaintenanceTaskId) -> MaintenanceTask | None: ...
+    def list(self, *, include_inactive: bool = False) -> list[MaintenanceTask]: ...
+    def add(self, task: MaintenanceTask) -> None: ...
+    def update(self, task: MaintenanceTask) -> None: ...
+
+
+class CompletionRepository(Protocol):
+    """Maintenance done, per asset (append-only, sequenced)."""
+
+    def for_asset(self, asset_id: AssetId) -> list[TaskCompletion]: ...
+    def append(self, completion: TaskCompletion) -> None: ...
+
+
+class DefectRepository(Protocol):
+    def get(self, defect_id: DefectId) -> Defect | None: ...
+    def for_asset(self, asset_id: AssetId) -> list[Defect]: ...
+    def list(self) -> list[Defect]:
+        """Newest first."""
+        ...
+
+    def add(self, defect: Defect) -> None: ...
+    def update(self, defect: Defect) -> None: ...
+
+
+class WorkOrderRepository(Protocol):
+    def get(self, work_order_id: WorkOrderId) -> WorkOrder | None: ...
+    def for_asset(self, asset_id: AssetId) -> list[WorkOrder]: ...
+    def list(self) -> list[WorkOrder]:
+        """Newest first."""
+        ...
+
+    def add(self, order: WorkOrder) -> None: ...
+    def update(self, order: WorkOrder) -> None: ...
+
+
 class AuditRepository(Protocol):
     def append(self, entry: AuditEntry) -> None: ...
     def for_entity(self, entity: str, entity_id: str) -> list[AuditEntry]: ...
@@ -274,5 +316,9 @@ class Storage:
     survey_sessions: SurveySessionRepository
     reservations: ReservationRepository
     bookings: BookingRepository
+    maintenance_tasks: MaintenanceTaskRepository
+    completions: CompletionRepository
+    defects: DefectRepository
+    work_orders: WorkOrderRepository
     audit: AuditRepository
     commands: CommandLog

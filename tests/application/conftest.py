@@ -14,6 +14,7 @@ from ims.application.context import Actor, CommandContext
 from ims.application.deployments import DeploymentService
 from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
+from ims.application.maintenance import MaintenanceService
 from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
 from ims.application.reservations import ReservationService
@@ -45,6 +46,7 @@ class App:
     deployments: DeploymentService
     logs: FieldLogService
     reservations: ReservationService
+    maintenance: MaintenanceService
     accounts: AccountService
     auth: LocalAuthProvider
     files: MemoryFileStore
@@ -85,6 +87,7 @@ def app() -> App:
         deployments=DeploymentService(storage, runner, clock),
         logs=FieldLogService(storage, runner, clock),
         reservations=ReservationService(storage, runner, clock),
+        maintenance=MaintenanceService(storage, runner, clock),
         accounts=AccountService(storage, auth, files, users, runner, clock),
         auth=auth,
         files=files,

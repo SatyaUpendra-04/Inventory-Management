@@ -10,6 +10,8 @@ Sheet {
     readonly property bool loaded: d.assetId !== undefined
     property string pendingAction: ""
     property string documentFile: ""
+    property bool reporting: false
+    property string recordTask: ""
 
     signal editRequested(var detail)
 
@@ -19,6 +21,9 @@ Sheet {
 
     function show(assetId) {
         Equipment.clearError()
+        Maintenance.clearError()
+        reporting = false
+        recordTask = ""
         pendingAction = ""
         Equipment.openAsset(assetId)
         open()
@@ -110,6 +115,126 @@ Sheet {
                             onClicked: { Equipment.changeStatus(sheet.d.assetId, sheet.pendingAction, reason.text); sheet.pendingAction = "" } }
                 AppButton { compact: true; text: qsTr("Cancel"); onClicked: sheet.pendingAction = "" }
             }
+        }
+
+        // ------------------------------------------------------------ maintenance
+        Column {
+            readonly property var m: sheet.d.maintenance || ({})
+            id: maintenanceSection
+            visible: (m.tasks || []).length > 0 || (m.defects || []).length > 0 || Maintenance.canReport
+            width: parent.width
+            spacing: Theme.space.xs
+            Rectangle { width: parent.width; height: 1; color: Theme.colors.divider }
+            Item {
+                width: parent.width
+                height: maintenanceHeading.height
+                Heading { id: maintenanceHeading; text: qsTr("Maintenance") }
+                Row {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    spacing: Theme.space.xs
+                    AppButton { visible: Maintenance.canReport && !sheet.reporting; compact: true; variant: "ghost"; iconName: "alert"
+                                text: qsTr("Report defect…"); onClicked: { sheet.reporting = true; defectText.text = ""; unsafe.checked = false } }
+                    AppButton { visible: Maintenance.canManage && !maintenanceSection.m.workOrderId; compact: true; iconName: "wrench"
+                                text: qsTr("Open work order…")
+                                onClicked: orderSheet.openNew(sheet.d.assetId, sheet.d.tag, "", [], []) }
+                    AppButton { visible: !!maintenanceSection.m.workOrderId; compact: true; iconName: "wrench"
+                                text: maintenanceSection.m.workOrder || ""
+                                onClicked: orderSheet.show(maintenanceSection.m.workOrderId) }
+                }
+            }
+            Rectangle {
+                visible: (maintenanceSection.m.grounding || []).length > 0
+                width: parent.width
+                height: groundCol.implicitHeight + Theme.space.sm * 2
+                radius: Theme.radius.sm
+                color: Theme.colors.dangerBg
+                border.width: 1
+                border.color: Theme.colors.dangerBorder
+                Column {
+                    id: groundCol
+                    x: Theme.space.sm; y: Theme.space.sm
+                    width: parent.width - Theme.space.sm * 2
+                    Repeater {
+                        model: maintenanceSection.m.grounding || []
+                        delegate: Txt { required property string modelData; width: groundCol.width; wrapMode: Text.WordWrap
+                                        text: "•  " + modelData; color: Theme.colors.dangerText }
+                    }
+                }
+            }
+            // report a defect, inline
+            Column {
+                visible: sheet.reporting
+                width: parent.width
+                spacing: Theme.space.xs
+                AppTextField { id: defectText; width: parent.width; placeholder: qsTr("What is wrong? e.g. Arm 3 creaks under load") }
+                Row {
+                    spacing: Theme.space.sm
+                    AppCheckBox { id: unsafe; text: qsTr("Unsafe: ground it now") }
+                    AppButton { compact: true; text: qsTr("Cancel"); onClicked: sheet.reporting = false }
+                    AppButton { compact: true; variant: unsafe.checked ? "danger" : "primary"; text: qsTr("Report")
+                                onClicked: { Maintenance.reportDefect(sheet.d.assetId, defectText.text, unsafe.checked); sheet.reporting = false } }
+                }
+            }
+            Repeater {
+                model: maintenanceSection.m.defects || []
+                delegate: Rectangle {
+                    required property var modelData
+                    width: parent.width
+                    height: 36
+                    radius: Theme.radius.sm
+                    color: Theme.colors.element
+                    Row {
+                        x: Theme.space.sm
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.space.md
+                        Txt { width: 80; text: modelData.number; variant: "bodyStrong" }
+                        Txt { width: 420; elide: Text.ElideRight
+                              text: modelData.description + (modelData.limitation ? qsTr("  ·  limitation: %1").arg(modelData.limitation) : "") }
+                    }
+                    StatusPill { anchors.right: parent.right; anchors.rightMargin: Theme.space.sm; anchors.verticalCenter: parent.verticalCenter
+                                 kind: modelData.stateKind; text: modelData.stateLabel }
+                }
+            }
+            Repeater {
+                model: maintenanceSection.m.tasks || []
+                delegate: Item {
+                    required property var modelData
+                    width: parent.width
+                    height: 34
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.space.md
+                        Txt { width: 220; height: 34; text: modelData.task; elide: Text.ElideRight }
+                        Txt { width: 190; height: 34; text: modelData.intervals; variant: "caption"; muted: true; elide: Text.ElideRight }
+                        Item { width: 96; height: 34
+                               StatusPill { anchors.verticalCenter: parent.verticalCenter; kind: modelData.stateKind; text: modelData.stateLabel } }
+                        Txt { width: 200; height: 34; text: modelData.summary; variant: "caption"; font.features: { "tnum": 1 }
+                              color: modelData.state === "overdue" ? Theme.colors.dangerText : Theme.colors.textMuted }
+                    }
+                    AppButton {
+                        visible: Maintenance.canManage && !modelData.lifeLimit
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        compact: true
+                        variant: "ghost"
+                        text: qsTr("Record done…")
+                        onClicked: { sheet.recordTask = modelData.taskId; recordNote.text = ""; recordDay.hasDate = true; recordDay.selectedDate = new Date() }
+                    }
+                }
+            }
+            Row {
+                visible: sheet.recordTask !== ""
+                spacing: Theme.space.xs
+                AppDatePicker { id: recordDay; width: 180 }
+                AppTextField { id: recordNote; width: 260; placeholder: qsTr("Note, e.g. done by the dealer") }
+                AppButton { text: qsTr("Cancel"); onClicked: sheet.recordTask = "" }
+                AppButton { variant: "primary"; text: qsTr("Record")
+                            onClicked: { Maintenance.recordDone(sheet.d.assetId, sheet.recordTask,
+                                                                Qt.formatDate(recordDay.selectedDate, "yyyy-MM-dd"), recordNote.text)
+                                         sheet.recordTask = "" } }
+            }
+            ErrorBanner { text: Maintenance.error }
         }
 
         // ------------------------------------------------------------ configuration
@@ -315,4 +440,6 @@ Sheet {
     actions: [
         AppButton { text: qsTr("Close"); onClicked: sheet.close() }
     ]
+
+    WorkOrderSheet { id: orderSheet }
 }

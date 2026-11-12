@@ -393,6 +393,86 @@ booking_events = Table(
     UniqueConstraint("asset_id", "sequence"),
 )
 
+maintenance_tasks = Table(
+    "maintenance_tasks",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("item_type_id", String(ID), ForeignKey("item_types.id"), nullable=False),
+    Column("name", String(80), nullable=False),
+    Column("every_hours", String(16)),
+    Column("every_cycles", Integer),
+    Column("every_landings", Integer),
+    Column("every_days", Integer),
+    Column("tolerance_hours", String(16), nullable=False),
+    Column("tolerance_cycles", Integer, nullable=False),
+    Column("tolerance_landings", Integer, nullable=False),
+    Column("tolerance_days", Integer, nullable=False),
+    Column("life_limit", Boolean, nullable=False),
+    Column("instructions", Text, nullable=False),
+    Column("effective_from", String(10), nullable=False),
+    Column("is_active", Boolean, nullable=False),
+)
+
+task_completions = Table(
+    "task_completions",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("asset_id", String(ID), ForeignKey("assets.id"), nullable=False),
+    Column("sequence", Integer, nullable=False),
+    Column("task_id", String(ID), ForeignKey("maintenance_tasks.id"), nullable=False),
+    Column("done_on", String(10), nullable=False),
+    Column("meters", Text, nullable=False),  # JSON {meter: reading}
+    Column("work_order_id", String(ID)),
+    Column("notes", Text, nullable=False),
+    Column("recorded_at", String(32), nullable=False),
+    Column("recorded_by", String(ID), nullable=False),
+    Column("command_id", String(ID), nullable=False),
+    UniqueConstraint("asset_id", "sequence"),
+)
+
+defects = Table(
+    "defects",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("number", String(16), nullable=False, unique=True),
+    Column("asset_id", String(ID), ForeignKey("assets.id"), nullable=False, index=True),
+    Column("description", Text, nullable=False),
+    Column("reported_by", String(ID), nullable=False),
+    Column("reported_at", String(32), nullable=False),
+    Column("found_on", String(10), nullable=False),
+    Column("state", String(16), nullable=False),
+    Column("limitation", Text, nullable=False),
+    Column("deferred_until", String(10)),
+    Column("assessed_by", String(ID)),
+    Column("assessed_at", String(32)),
+    Column("assessment_note", Text, nullable=False),
+    Column("work_order_id", String(ID)),
+)
+
+work_orders = Table(
+    "work_orders",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("number", String(16), nullable=False, unique=True),
+    Column("asset_id", String(ID), ForeignKey("assets.id"), nullable=False, index=True),
+    Column("title", String(120), nullable=False),
+    Column("task_ids", Text, nullable=False),
+    Column("defect_ids", Text, nullable=False),
+    Column("state", String(16), nullable=False),
+    Column("opened_by", String(ID), nullable=False),
+    Column("opened_at", String(32), nullable=False),
+    Column("work_done", Text, nullable=False),
+    Column("parts", Text, nullable=False),
+    Column("completed_by", String(ID)),
+    Column("completed_at", String(32)),
+    Column("certified_by", String(ID)),
+    Column("certified_at", String(32)),
+    Column("note", Text, nullable=False),
+)
+
 audit_log = Table(
     "audit_log",
     metadata,

@@ -133,7 +133,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** double-booking is impossible, reservations flow into deployments, and GCP stock never runs out unnoticed.
 **Result:** Reservations page with list and four-week calendar (by equipment, by project); requests with a live conflict check; approval books each item in a per-item sequenced ledger so concurrent approvals cannot double-book (ADR-0008); other projects' bookings block check-out; check-out from a reservation fulfils it; GCP booked/free per store with reorder warnings; stocktake with variance report. Migration 0005. 487 tests, 90% coverage; domain 99%; zero QML warnings.
 
-### Sprint 7 — Airworthiness & maintenance
+### Sprint 7 — Airworthiness & maintenance ✅ (done 2026-11-12)
 - Maintenance programme per asset model: tasks due by hours, cycles or calendar, whichever comes first, with tolerances
 - Due and overdue list; overdue tasks ground the asset automatically
 - **Defects:** report → assess (ground immediately or defer with a limitation) → rectify
@@ -141,6 +141,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - Life-limited components tracked through the configuration history
 
 **Done when:** no asset can be deployed with an overdue task or open grounding defect.
+**Result:** editable programme with intervals, tolerances and life limits; due status calculated from the usage ledger and maintenance records; automatic grounding on logs and by sweep; defects (report, assess, defer, rectify) and work orders through to administrator sign-off; check-out blocked by any grounding reason on the item or its fitted parts; Maintenance page and item-sheet section (ADR-0009). Migration 0006. 512 tests, 89% coverage; domain 99%; zero QML warnings.
 
 ### Sprint 8 — Battery lifecycle & survey equipment
 - Separate lifecycle for every battery: drone flight batteries, DGPS receiver batteries, controller batteries
@@ -230,7 +231,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | 4 | 2 | Asset registry, configuration, compliance ✅ |
 | 5 | 2 | Projects, deployments, field logs ✅ |
 | 6 | 2 | Reservations ✅ |
-| 7 | 2 | Airworthiness & maintenance |
+| 7 | 2 | Airworthiness & maintenance ✅ |
 | 8 | 2 | Battery lifecycle & survey equipment |
 | 9 | 2 | Stats, reports, forecasting |
 | 10 | 2 (+2 buffer) | Backend integration & release |

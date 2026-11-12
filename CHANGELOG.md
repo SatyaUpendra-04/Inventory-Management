@@ -4,6 +4,17 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 7 (Airworthiness & maintenance)
+- **Maintenance programme** per kind of equipment: tasks due by hours, cycles, landings and/or days, whichever comes first, with tolerances; **life limits** for parts that are replaced, never reset. A starting programme is installed (drone 50 h / 90-day inspection and annual service, motor bearing check and 600 h life limit, propeller 100 h life limit, landing gear every 300 landings, GNSS receivers and PPK base every 180 days) and every task can be edited or added to
+- **Maintenance** page: *Due* (overdue, due within tolerance, due soon, across the fleet), *Defects*, *Work orders* and *Programme*
+- **Automatic grounding:** a flight or survey that takes an item past a limit grounds it straight away; calendar tasks and expired deferrals are grounded when an administrator signs in or opens Maintenance
+- **Check-out is blocked** by any overdue task, reached life limit, open grounding defect or expired deferral, on the item or on any part fitted to it; reservations warn about maintenance falling due during the booking
+- **Defects:** anyone can report one from the item's sheet (unsafe ones ground it at once); administrators assess: ground, defer with a limitation until a date, or not a defect. Equipment returned damaged or with a defect files a defect automatically
+- **Work orders:** open (the item goes into maintenance) → in progress ⇄ waiting for parts → work done → **sign-off returns it to service** (administrators). Sign-off is refused while anything still grounds the item
+- Item sheet: a **Maintenance** section with each task's state, open defects, *Report defect*, *Record done* (for maintenance done before or outside the app) and the open work order
+- Database migration 0006 (programme, maintenance records, defects, work orders)
+- ADR-0009
+
 ### Added — Sprint 6 (Reservations)
 - **Reservations** page: requests waiting for approval, what is booked, and a four-week **calendar** by equipment or by project (booked, requested and out-on-a-project bars; this week, previous and next week)
 - **Reserve equipment** for a project's dates: kits (every member is booked), extra equipment and GCP banners, with a live check of everything that clashes: another booking (blocks), retired items (blocks), competing requests, equipment out with another project, grounded or limited items, items in maintenance, documents missing or expiring before the job ends, incomplete kits, and GCP banners that would fall to the reorder level or run short

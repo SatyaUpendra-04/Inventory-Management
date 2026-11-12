@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from ims.application.airworthiness import ground_if_needed
 from ims.application.context import Actor, CommandContext
 from ims.application.deployments import fitted_parts
 from ims.application.ledgers import append_usage
@@ -102,6 +103,7 @@ class FieldLogService:
             ids = self._write_usage(ctx, actor, plan, flown_on, deployment, "Flight")
             sortie = draft.model_copy(update={"usage_entries": tuple(ids)})
             add_once(self._s.sorties.add, sortie)
+            self._ground_used(ctx, actor, ids)
             return Outcome("sortie", str(sortie_id), None, sortie.model_dump(mode="json"))
 
         self._run.run(ctx, "sortie.log", execute)
@@ -165,6 +167,7 @@ class FieldLogService:
             ids = self._write_usage(ctx, actor, plan, surveyed_on, deployment, "Survey session")
             session = draft.model_copy(update={"usage_entries": tuple(ids)})
             add_once(self._s.survey_sessions.add, session)
+            self._ground_used(ctx, actor, ids)
             return Outcome("survey_session", str(session_id), None, session.model_dump(mode="json"))
 
         self._run.run(ctx, "survey_session.log", execute)
@@ -198,6 +201,13 @@ class FieldLogService:
                 self._reverse(ctx, actor, asset_id, entry_id, f"{label} not logged")
             raise
         return written
+
+    def _ground_used(
+        self, ctx: CommandContext, actor: Actor, written: list[tuple[AssetId, EntryId]]
+    ) -> None:
+        """An item this log took past a limit is grounded straight away (ARCHITECTURE §4.3)."""
+        for asset_id in dict.fromkeys(a for a, _ in written):
+            ground_if_needed(self._s, self._clock, ctx, actor, asset_id, f"ground:{asset_id}")
 
     def _reverse(
         self, ctx: CommandContext, actor: Actor, asset_id: AssetId, entry_id: EntryId, note: str

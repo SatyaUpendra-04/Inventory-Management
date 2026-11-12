@@ -25,21 +25,27 @@ from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
 from ims.domain.common.ids import (
     AssetId,
     CommandId,
+    DefectId,
     DeploymentId,
     DocumentId,
     ItemTypeId,
     KitId,
     KitTemplateId,
     LocationId,
+    MaintenanceTaskId,
     ProjectId,
     ReservationId,
     SortieId,
     SurveySessionId,
     UserId,
+    WorkOrderId,
 )
 from ims.domain.identity.roles import Role
 from ims.domain.identity.user import PilotLicence, User
 from ims.domain.kits import Kit, KitTemplate
+from ims.domain.maintenance.defects import Defect
+from ims.domain.maintenance.programme import MaintenanceTask, TaskCompletion
+from ims.domain.maintenance.work_orders import WorkOrder
 from ims.domain.operations.deployment import Deployment
 from ims.domain.operations.field_logs import Sortie, SurveySession
 from ims.domain.operations.project import Project
@@ -1021,6 +1027,93 @@ class SqliteBookings(_Base):
         self._append_sequenced(_record_row(event, frozenset()), "asset_id")
 
 
+# ------------------------------------------------------------------ maintenance
+
+
+class SqliteMaintenanceTasks(_Base):
+    table, label = s.maintenance_tasks, "maintenance task"
+    _read = staticmethod(_record_of(MaintenanceTask, frozenset()))
+
+    def get(self, task_id: MaintenanceTaskId) -> MaintenanceTask | None:
+        return self._one(s.maintenance_tasks.c.id == str(task_id), self._read)
+
+    def list(self, *, include_inactive: bool = False) -> list[MaintenanceTask]:
+        t = s.maintenance_tasks
+        query = select(t).order_by(t.c.item_type_id, t.c.name, t.c.id)
+        if not include_inactive:
+            query = query.where(t.c.is_active.is_(True))
+        return self._many(query, self._read)
+
+    def add(self, task: MaintenanceTask) -> None:
+        self._insert(_record_row(task, frozenset()))
+
+    def update(self, task: MaintenanceTask) -> None:
+        self._update_versioned(_record_row(task, frozenset()))
+
+
+class SqliteCompletions(_Base):
+    table, label = s.task_completions, "maintenance record"
+    _read = staticmethod(_record_of(TaskCompletion, frozenset({"meters"})))
+
+    def for_asset(self, asset_id: AssetId) -> list[TaskCompletion]:
+        t = s.task_completions
+        return self._many(
+            select(t).where(t.c.asset_id == str(asset_id)).order_by(t.c.sequence), self._read
+        )
+
+    def append(self, completion: TaskCompletion) -> None:
+        self._append_sequenced(_record_row(completion, frozenset({"meters"})), "asset_id")
+
+
+_WORK_ORDER_JSON = frozenset({"task_ids", "defect_ids"})
+
+
+class SqliteDefects(_Base):
+    table, label = s.defects, "defect"
+    _read = staticmethod(_record_of(Defect, frozenset()))
+
+    def get(self, defect_id: DefectId) -> Defect | None:
+        return self._one(s.defects.c.id == str(defect_id), self._read)
+
+    def for_asset(self, asset_id: AssetId) -> list[Defect]:
+        t = s.defects
+        query = select(t).where(t.c.asset_id == str(asset_id))
+        return self._many(query.order_by(t.c.reported_at.desc(), t.c.number.desc()), self._read)
+
+    def list(self) -> list[Defect]:
+        t = s.defects
+        return self._many(select(t).order_by(t.c.reported_at.desc(), t.c.number.desc()), self._read)
+
+    def add(self, defect: Defect) -> None:
+        self._insert(_record_row(defect, frozenset()))
+
+    def update(self, defect: Defect) -> None:
+        self._update_versioned(_record_row(defect, frozenset()))
+
+
+class SqliteWorkOrders(_Base):
+    table, label = s.work_orders, "work order"
+    _read = staticmethod(_record_of(WorkOrder, _WORK_ORDER_JSON))
+
+    def get(self, work_order_id: WorkOrderId) -> WorkOrder | None:
+        return self._one(s.work_orders.c.id == str(work_order_id), self._read)
+
+    def for_asset(self, asset_id: AssetId) -> list[WorkOrder]:
+        t = s.work_orders
+        query = select(t).where(t.c.asset_id == str(asset_id))
+        return self._many(query.order_by(t.c.opened_at.desc(), t.c.number.desc()), self._read)
+
+    def list(self) -> list[WorkOrder]:
+        t = s.work_orders
+        return self._many(select(t).order_by(t.c.opened_at.desc(), t.c.number.desc()), self._read)
+
+    def add(self, order: WorkOrder) -> None:
+        self._insert(_record_row(order, _WORK_ORDER_JSON))
+
+    def update(self, order: WorkOrder) -> None:
+        self._update_versioned(_record_row(order, _WORK_ORDER_JSON))
+
+
 # ------------------------------------------------------------------ audit & commands
 
 
@@ -1124,6 +1217,10 @@ def sqlite_storage(engine: Engine) -> Storage:
         survey_sessions=SqliteSurveySessions(engine),
         reservations=SqliteReservations(engine),
         bookings=SqliteBookings(engine),
+        maintenance_tasks=SqliteMaintenanceTasks(engine),
+        completions=SqliteCompletions(engine),
+        defects=SqliteDefects(engine),
+        work_orders=SqliteWorkOrders(engine),
         audit=SqliteAudit(engine),
         commands=SqliteCommandLog(engine),
     )

@@ -10,6 +10,7 @@ from ims.application.catalogue import CatalogueService
 from ims.application.deployments import DeploymentService
 from ims.application.field_logs import FieldLogService
 from ims.application.kits import KitService
+from ims.application.maintenance import MaintenanceService
 from ims.application.projects import ProjectService
 from ims.application.registry import RegistryService
 from ims.application.reservations import ReservationService
@@ -33,4 +34,5 @@ class Services:
     deployments: DeploymentService
     logs: FieldLogService
     reservations: ReservationService
+    maintenance: MaintenanceService
     clock: Clock

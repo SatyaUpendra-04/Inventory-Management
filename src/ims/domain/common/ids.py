@@ -26,6 +26,9 @@ DeploymentId = NewType("DeploymentId", uuid.UUID)
 SortieId = NewType("SortieId", uuid.UUID)
 SurveySessionId = NewType("SurveySessionId", uuid.UUID)
 ReservationId = NewType("ReservationId", uuid.UUID)
+MaintenanceTaskId = NewType("MaintenanceTaskId", uuid.UUID)
+DefectId = NewType("DefectId", uuid.UUID)
+WorkOrderId = NewType("WorkOrderId", uuid.UUID)
 
 _VERSION_7 = 0x7
 _VARIANT_RFC = 0b10

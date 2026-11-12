@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from ims.application.airworthiness import add_defect, grounding_reasons
 from ims.application.bookings import booked_elsewhere, fulfil
 from ims.application.context import Actor, CommandContext
 from ims.application.ledgers import append_movement, append_status
@@ -49,12 +50,14 @@ from ims.domain.common.ids import (
 )
 from ims.domain.identity.roles import Permission
 from ims.domain.kits import completeness
+from ims.domain.maintenance.defects import DefectState
 from ims.domain.operations.deployment import (
     AssetReadiness,
     CrewMember,
     Deployment,
     DeploymentState,
     Readiness,
+    ReturnCondition,
     ReturnLine,
     check_readiness,
     check_return,
@@ -328,6 +331,17 @@ class DeploymentService:
                     self._s, self._clock, ctx, actor, asset_id, change,
                     purpose=f"return:{asset_id}",
                 )  # fmt: skip
+            for line in lines:
+                if line.condition is ReturnCondition.OK:
+                    continue
+                add_defect(
+                    self._s, self._clock, ctx, actor, line.asset_id, description=line.note,
+                    found_on=day,
+                    state=DefectState.GROUNDED
+                    if line.condition is ReturnCondition.GROUNDED
+                    else DefectState.REPORTED,
+                    purpose=f"defect:{line.asset_id}",
+                )  # fmt: skip
             self._settle_gcp(ctx, actor, stored, gcp_returned, gcp_consumed, return_site_id)
             after = stored.next_version(
                 state=DeploymentState.RETURNED, returned_on=day, returned_by=actor.user_id,
@@ -445,11 +459,15 @@ class DeploymentService:
         fitted_problems: list[str] = []
         for part_id in fitted_parts(self._s, asset_id):
             part = self._asset(part_id)
+            part_type = self._type(part.item_type_id)
+            name = f"fitted {part_type.name.lower()} {part.asset_tag}"
+            reasons = grounding_reasons(self._s, part_id, day)
             if replay(self._s.status_events.for_asset(part_id)).serviceability not in USABLE:
-                part_type = self._type(part.item_type_id)
                 fitted_problems.append(
-                    f"fitted {part_type.name.lower()} {part.asset_tag} is grounded"
+                    f"{name} is grounded" + (f" ({reasons[0]})" if reasons else "")
                 )
+            else:
+                fitted_problems.extend(f"{name}: {reason}" for reason in reasons)
         return AssetReadiness(
             asset_id=asset_id,
             tag=asset.asset_tag,
@@ -459,6 +477,7 @@ class DeploymentService:
             compliance=compliance_problems(item_type, self._s.documents.for_asset(asset_id), day),
             fitted_problems=fitted_problems,
             booked_elsewhere=booked_elsewhere(self._s, asset_id, day, project_id),
+            maintenance_overdue=grounding_reasons(self._s, asset_id, day),
         )
 
     def _crew_member(self, user_id: UserId) -> CrewMember:

@@ -21,20 +21,26 @@ from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
 from ims.domain.common.ids import (
     AssetId,
     CommandId,
+    DefectId,
     DeploymentId,
     DocumentId,
     ItemTypeId,
     KitId,
     KitTemplateId,
     LocationId,
+    MaintenanceTaskId,
     ProjectId,
     ReservationId,
     SortieId,
     SurveySessionId,
     UserId,
+    WorkOrderId,
 )
 from ims.domain.identity.user import User
 from ims.domain.kits import Kit, KitTemplate
+from ims.domain.maintenance.defects import Defect
+from ims.domain.maintenance.programme import MaintenanceTask, TaskCompletion
+from ims.domain.maintenance.work_orders import WorkOrder
 from ims.domain.operations.deployment import Deployment
 from ims.domain.operations.field_logs import Sortie, SurveySession
 from ims.domain.operations.project import Project
@@ -531,6 +537,75 @@ class MemoryBookings:
         self._s.append(event, event.id, event.sequence)
 
 
+class MemoryMaintenanceTasks:
+    def __init__(self) -> None:
+        self._t: _Table[MaintenanceTask] = _Table("maintenance task", {})
+
+    def get(self, task_id: MaintenanceTaskId) -> MaintenanceTask | None:
+        return self._t.rows.get(task_id)
+
+    def list(self, *, include_inactive: bool = False) -> list[MaintenanceTask]:
+        rows = [t for t in self._t.rows.values() if include_inactive or t.is_active]
+        return sorted(rows, key=lambda t: (str(t.item_type_id), t.name, str(t.id)))
+
+    def add(self, task: MaintenanceTask) -> None:
+        self._t.add(task)
+
+    def update(self, task: MaintenanceTask) -> None:
+        self._t.update(task)
+
+
+class MemoryCompletions:
+    def __init__(self) -> None:
+        self._s: _Stream[TaskCompletion] = _Stream(lambda c: c.asset_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[TaskCompletion]:
+        return self._s.get(asset_id)
+
+    def append(self, completion: TaskCompletion) -> None:
+        self._s.append(completion, completion.id, completion.sequence)
+
+
+class MemoryDefects:
+    def __init__(self) -> None:
+        self._t: _Table[Defect] = _Table("defect", {"number": lambda d: d.number})
+
+    def get(self, defect_id: DefectId) -> Defect | None:
+        return self._t.rows.get(defect_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[Defect]:
+        return [d for d in self.list() if d.asset_id == asset_id]
+
+    def list(self) -> list[Defect]:
+        return sorted(self._t.rows.values(), key=lambda d: (d.reported_at, d.number), reverse=True)
+
+    def add(self, defect: Defect) -> None:
+        self._t.add(defect)
+
+    def update(self, defect: Defect) -> None:
+        self._t.update(defect)
+
+
+class MemoryWorkOrders:
+    def __init__(self) -> None:
+        self._t: _Table[WorkOrder] = _Table("work order", {"number": lambda w: w.number})
+
+    def get(self, work_order_id: WorkOrderId) -> WorkOrder | None:
+        return self._t.rows.get(work_order_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[WorkOrder]:
+        return [w for w in self.list() if w.asset_id == asset_id]
+
+    def list(self) -> list[WorkOrder]:
+        return sorted(self._t.rows.values(), key=lambda w: (w.opened_at, w.number), reverse=True)
+
+    def add(self, order: WorkOrder) -> None:
+        self._t.add(order)
+
+    def update(self, order: WorkOrder) -> None:
+        self._t.update(order)
+
+
 class MemoryCommandLog:
     def __init__(self) -> None:
         self._records: dict[CommandId, CommandRecord] = {}
@@ -565,6 +640,10 @@ def memory_storage() -> Storage:
         survey_sessions=MemorySurveySessions(),
         reservations=MemoryReservations(),
         bookings=MemoryBookings(),
+        maintenance_tasks=MemoryMaintenanceTasks(),
+        completions=MemoryCompletions(),
+        defects=MemoryDefects(),
+        work_orders=MemoryWorkOrders(),
         audit=MemoryAudit(),
         commands=MemoryCommandLog(),
     )

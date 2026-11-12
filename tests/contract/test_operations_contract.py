@@ -216,3 +216,94 @@ class TestReservationsAndBookings:
         storage.bookings.append(released)
         assert storage.bookings.for_asset(drone.id) == [booked, released]
         assert storage.bookings.for_asset(AssetId(uuid7())) == []
+
+
+class TestMaintenanceStorage:
+    def test_round_trips_sequences_and_unique_numbers(self, storage: Storage) -> None:
+        from decimal import Decimal as Dec
+
+        from ims.domain.assets.catalogue import Meter
+        from ims.domain.common.ids import (
+            CommandId,
+            DefectId,
+            MaintenanceTaskId,
+            WorkOrderId,
+        )
+        from ims.domain.maintenance.defects import Defect, DefectState
+        from ims.domain.maintenance.programme import MaintenanceTask, TaskCompletion
+        from ims.domain.maintenance.work_orders import WorkOrder, WorkOrderState
+
+        drone = _asset(storage, "DRONE_AIRFRAME", "DRN-0001")
+        task = MaintenanceTask(
+            id=MaintenanceTaskId(uuid7()),
+            item_type_id=drone.item_type_id,
+            name="Inspection",
+            every_hours=Dec("50.5"),
+            every_days=90,
+            tolerance_hours=Dec(5),
+            effective_from=DAY,
+        )
+        storage.maintenance_tasks.add(task)
+        assert storage.maintenance_tasks.get(task.id) == task
+        retired = task.next_version(is_active=False)
+        storage.maintenance_tasks.update(retired)
+        assert storage.maintenance_tasks.list() == []
+        assert storage.maintenance_tasks.list(include_inactive=True) == [retired]
+
+        def completion(seq: int) -> TaskCompletion:
+            return TaskCompletion(
+                id=EntryId(uuid7()),
+                asset_id=drone.id,
+                sequence=seq,
+                task_id=task.id,
+                done_on=DAY,
+                meters={Meter.HOURS: Dec("12.25")},
+                recorded_at=START,
+                recorded_by=UserId(uuid7()),
+                command_id=CommandId(uuid7()),
+            )
+
+        first = completion(1)
+        storage.completions.append(first)
+        with pytest.raises(ConflictError):
+            storage.completions.append(completion(1))
+        assert storage.completions.for_asset(drone.id) == [first]
+
+        defect = Defect(
+            id=DefectId(uuid7()),
+            number="DEF-0001",
+            asset_id=drone.id,
+            description="Creak",
+            reported_by=UserId(uuid7()),
+            reported_at=START,
+            found_on=DAY,
+        )
+        storage.defects.add(defect)
+        with pytest.raises(ConflictError):
+            storage.defects.add(defect.model_copy(update={"id": DefectId(uuid7())}))
+        deferred = defect.next_version(
+            state=DefectState.DEFERRED, limitation="Max wind 8 m/s", deferred_until=DAY
+        )
+        storage.defects.update(deferred)
+        assert storage.defects.get(defect.id) == deferred
+        assert storage.defects.for_asset(drone.id) == [deferred] == storage.defects.list()
+
+        order = WorkOrder(
+            id=WorkOrderId(uuid7()),
+            number="WO-0001",
+            asset_id=drone.id,
+            title="Inspection",
+            task_ids=(task.id,),
+            defect_ids=(defect.id,),
+            opened_by=UserId(uuid7()),
+            opened_at=START,
+        )
+        storage.work_orders.add(order)
+        with pytest.raises(ConflictError):
+            storage.work_orders.add(order.model_copy(update={"id": WorkOrderId(uuid7())}))
+        started = order.next_version(state=WorkOrderState.IN_PROGRESS)
+        storage.work_orders.update(started)
+        assert storage.work_orders.get(order.id) == started
+        assert storage.work_orders.for_asset(drone.id) == [started] == storage.work_orders.list()
+        with pytest.raises(ConflictError):
+            storage.work_orders.update(started)

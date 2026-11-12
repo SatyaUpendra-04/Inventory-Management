@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from ims.application.airworthiness import planned_between
 from ims.application.bookings import append_booking, release_all
 from ims.application.context import Actor, CommandContext
 from ims.application.deployments import gcp_item_type
@@ -394,6 +395,7 @@ class ReservationService:
         return AssetSchedule(
             asset_id=asset_id, tag=asset.asset_tag, type_name=item_type.name, status=status,
             booked=booked, requested=requested, out_with=out_with, documents=documents,
+            maintenance=planned_between(self._s, asset_id, starts_on, ends_on),
         )  # fmt: skip
 
     def _gcp_forecast(self, site_id: LocationId | None, this: ReservationId) -> GcpForecast | None:
