@@ -12,6 +12,7 @@ from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 from ims.application.registry import AssetOverview, AssetSummary
+from ims.domain.assets.calibration import CalibrationKind, CalibrationResult
 from ims.domain.assets.catalogue import Category, ItemType, Meter, TrackingMode
 from ims.domain.assets.documents import DOCUMENT_LABELS, DocumentKind, allowed_kinds
 from ims.domain.assets.status import (
@@ -167,10 +168,22 @@ def _row(s: AssetSummary) -> dict[str, Any]:
     }
 
 
-def available_actions(status: AssetStatus, permissions: frozenset[str]) -> list[dict[str, Any]]:
-    """Status changes that are both allowed by the rules and by the person's role."""
+def available_actions(
+    status: AssetStatus, permissions: frozenset[str], *, grounded: bool = False
+) -> list[dict[str, Any]]:
+    """Status changes that are both allowed by the rules and by the person's role.
+
+    ``grounded``: something (maintenance, a defect, a battery or calibration) still grounds
+    the item, so it cannot be returned to service from here.
+    """
     actions: list[dict[str, Any]] = []
     for key, label, change, needs_reason in STATUS_ACTIONS:
+        if (
+            grounded
+            and key in {"certify", "limit"}
+            and status.serviceability.value == "unserviceable"
+        ):
+            continue
         try:
             apply_change(status, change)
         except DomainError:
@@ -462,6 +475,7 @@ class EquipmentViewModel(QObject):
             )
             detail = self._detail_dict(overview, permissions, loose)
             detail["maintenance"] = maintenance
+            detail["calibrations"] = self._calibrations(actor, AssetId(uuid.UUID(asset_id)))
             return detail
 
         def done(detail: dict[str, Any]) -> None:
@@ -469,6 +483,64 @@ class EquipmentViewModel(QObject):
             self.detailChanged.emit()
 
         self._tasks.submit(work, done, self._fail)
+
+    def _calibrations(self, actor: Any, asset_id: AssetId) -> list[dict[str, Any]]:
+        people = {u.id: u.full_name for u in self._sv.users.crew_directory(actor)}
+        rows = []
+        for r in reversed(self._sv.calibration.records(actor, asset_id)):
+            residual = " · ".join(
+                part
+                for part in (
+                    f"H {r.horizontal_mm} mm" if r.horizontal_mm is not None else "",
+                    f"V {r.vertical_mm} mm" if r.vertical_mm is not None else "",
+                )
+                if part
+            )
+            rows.append(
+                {
+                    "when": f"{r.done_on:%d %b %Y}",
+                    "kind": r.kind.value.capitalize(),
+                    "method": r.method,
+                    "reference": r.reference,
+                    "resultKind": {"pass": "success", "adjusted": "info", "fail": "danger"}[
+                        r.result.value
+                    ],
+                    "result": {"pass": "Pass", "adjusted": "Adjusted", "fail": "Fail"}[
+                        r.result.value
+                    ],
+                    "residual": residual,
+                    "validUntil": f"{r.valid_until:%d %b %Y}" if r.valid_until else "",
+                    "notes": r.notes,
+                    "by": people.get(r.recorded_by, ""),
+                }
+            )
+        return rows
+
+    @Slot(str, dict, str)
+    def recordCalibration(self, asset_id: str, values: dict[str, Any], file_url: str) -> None:  # noqa: N802
+        fields = values.copy()
+
+        def work() -> None:
+            content = Path(local_path(file_url)).read_bytes() if file_url else None
+            done_on = optional_date(fields, "doneOn")
+            if done_on is None:
+                raise RuleViolation("Choose the date.")
+            self._sv.calibration.record(
+                self._session.context(),
+                AssetId(uuid.UUID(asset_id)),
+                kind=CalibrationKind(text(fields, "kind") or "calibration"),
+                done_on=done_on,
+                method=text(fields, "method"),
+                reference=text(fields, "reference"),
+                result=CalibrationResult(text(fields, "result") or "pass"),
+                horizontal_mm=optional_decimal(fields, "horizontal", "Horizontal difference"),
+                vertical_mm=optional_decimal(fields, "vertical", "Vertical difference"),
+                valid_until=optional_date(fields, "validUntil"),
+                notes=text(fields, "notes"),
+                certificate=content,
+            )
+
+        self._run(work, "Calibration recorded")
 
     @Slot()
     def reloadAsset(self) -> None:  # noqa: N802
@@ -527,6 +599,7 @@ class EquipmentViewModel(QObject):
             "acquiredOn": o.asset.acquired_on.isoformat() if o.asset.acquired_on else "",
             "warrantyUntil": o.asset.warranty_until.isoformat() if o.asset.warranty_until else "",
             "tracksWarranty": o.item_type.tracks_warranty,
+            "tracksCalibration": o.item_type.tracks_calibration,
             "homeSiteId": str(o.asset.home_site_id) if o.asset.home_site_id else "",
             "site": o.home_site.label if o.home_site else "",
             "notes": o.asset.notes,
@@ -595,7 +668,13 @@ class EquipmentViewModel(QObject):
                 }
                 for e in reversed(o.history)
             ],
-            "actions": available_actions(o.status, permissions),
+            "actions": available_actions(
+                o.status,
+                permissions,
+                grounded=bool(
+                    self._sv.maintenance.grounding_reasons(self._session.actor(), o.asset.id)
+                ),
+            ),
             "documentKinds": [
                 {"value": k.value, "label": DOCUMENT_LABELS[k]} for k in allowed_kinds(o.item_type)
             ],

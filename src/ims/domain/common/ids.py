@@ -29,6 +29,7 @@ ReservationId = NewType("ReservationId", uuid.UUID)
 MaintenanceTaskId = NewType("MaintenanceTaskId", uuid.UUID)
 DefectId = NewType("DefectId", uuid.UUID)
 WorkOrderId = NewType("WorkOrderId", uuid.UUID)
+BatteryPolicyId = NewType("BatteryPolicyId", uuid.UUID)
 
 _VERSION_7 = 0x7
 _VARIANT_RFC = 0b10

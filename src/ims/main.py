@@ -20,7 +20,10 @@ from ims.adapters.sqlite import DB_FILE_NAME, open_sqlite_storage
 from ims.adapters.sqlite.repositories import SqliteCredentialStore
 from ims.adapters.system_clock import SystemClock
 from ims.application.accounts import AccountService
+from ims.application.alerts import AlertService
 from ims.application.assets import AssetService
+from ims.application.batteries import BatteryService
+from ims.application.calibration import CalibrationService
 from ims.application.catalogue import CatalogueService
 from ims.application.deployments import DeploymentService
 from ims.application.field_logs import FieldLogService
@@ -65,6 +68,9 @@ def build_services(data_dir: Path) -> tuple[Services, Callable[[], None]]:
         logs=FieldLogService(storage, runner, clock),
         reservations=ReservationService(storage, runner, clock),
         maintenance=MaintenanceService(storage, runner, clock),
+        batteries=BatteryService(storage, runner, clock),
+        calibration=CalibrationService(storage, runner, clock, files),
+        alerts=AlertService(storage, clock),
         clock=clock,
     )
     return services, engine.dispose

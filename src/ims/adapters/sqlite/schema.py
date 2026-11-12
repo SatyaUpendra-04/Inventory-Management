@@ -473,6 +473,60 @@ work_orders = Table(
     Column("note", Text, nullable=False),
 )
 
+battery_policies = Table(
+    "battery_policies",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("version", Integer, nullable=False),
+    Column("item_type_id", String(ID), ForeignKey("item_types.id"), nullable=False, unique=True),
+    Column("cycle_limit", Integer, nullable=False),
+    Column("health_floor", Integer, nullable=False),
+    Column("idle_days", Integer, nullable=False),
+    Column("notes", Text, nullable=False),
+)
+
+battery_checks = Table(
+    "battery_checks",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("asset_id", String(ID), ForeignKey("assets.id"), nullable=False),
+    Column("sequence", Integer, nullable=False),
+    Column("checked_on", String(10), nullable=False),
+    Column("health_pct", Integer),
+    Column("internal_resistance_mohm", String(16)),
+    Column("cell_imbalance_mv", Integer),
+    Column("swelling", Boolean, nullable=False),
+    Column("damage", Boolean, nullable=False),
+    Column("charge_state", String(16), nullable=False),
+    Column("notes", Text, nullable=False),
+    Column("recorded_at", String(32), nullable=False),
+    Column("recorded_by", String(ID), nullable=False),
+    Column("command_id", String(ID), nullable=False),
+    UniqueConstraint("asset_id", "sequence"),
+)
+
+calibration_records = Table(
+    "calibration_records",
+    metadata,
+    Column("id", String(ID), primary_key=True),
+    Column("asset_id", String(ID), ForeignKey("assets.id"), nullable=False),
+    Column("sequence", Integer, nullable=False),
+    Column("kind", String(16), nullable=False),
+    Column("done_on", String(10), nullable=False),
+    Column("method", String(200), nullable=False),
+    Column("reference", String(200), nullable=False),
+    Column("result", String(16), nullable=False),
+    Column("horizontal_mm", String(16)),
+    Column("vertical_mm", String(16)),
+    Column("valid_until", String(10)),
+    Column("document_id", String(ID)),
+    Column("notes", Text, nullable=False),
+    Column("recorded_at", String(32), nullable=False),
+    Column("recorded_by", String(ID), nullable=False),
+    Column("command_id", String(ID), nullable=False),
+    UniqueConstraint("asset_id", "sequence"),
+)
+
 audit_log = Table(
     "audit_log",
     metadata,

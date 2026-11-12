@@ -4,6 +4,20 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added — Sprint 8 (Battery lifecycle & survey equipment)
+- **Batteries** page: every drone, receiver and controller battery with cycles against its limit (bar), health (measured, or estimated and labelled so), last check and condition (OK, storage charge due, near cycle limit, retire, unsafe); search and a *Need attention* filter
+- **Battery sheet:** record a check (health %, internal resistance, cell imbalance, swelling, damage, left at storage charge), log charge cycles for receiver and controller batteries, the full check history and **cycle ledger**, and the compatible chargers
+- **Limits** per kind of battery (cycle limit, minimum health, storage-charge reminder), editable; starting values 200 / 70% / 14 days for drone packs and 500 / 70% / 30 days for receiver and controller batteries
+- **Servicing never resets cycles or health** (fixes V1.2.3 rule M4)
+- A battery at its cycle limit, below its measured health limit, or with swelling or damage is **grounded automatically** and cannot be checked out
+- **GNSS calibration and verification** on the item sheet: method, lab or control point, result, horizontal and vertical differences, valid-until and certificate. A calibration files the certificate as the item's calibration document; a failed result grounds the receiver until a later record passes
+- **Alert centre** behind the toolbar bell: maintenance, defects, batteries, calibration, documents, pilot certificates, GCP stock and reservations waiting for approval, most urgent first; the bell shows how many need attention
+- Database migration 0007 (battery limits, battery checks, calibration records)
+- ADR-0010
+
+### Fixed — Sprint 8
+- The item sheet's *Return to service* button could return an item that maintenance, a defect, a battery limit or a failed calibration still grounds; it is now refused with the reasons
+
 ### Added — Sprint 7 (Airworthiness & maintenance)
 - **Maintenance programme** per kind of equipment: tasks due by hours, cycles, landings and/or days, whichever comes first, with tolerances; **life limits** for parts that are replaced, never reset. A starting programme is installed (drone 50 h / 90-day inspection and annual service, motor bearing check and 600 h life limit, propeller 100 h life limit, landing gear every 300 landings, GNSS receivers and PPK base every 180 days) and every task can be edited or added to
 - **Maintenance** page: *Due* (overdue, due within tolerance, due soon, across the fleet), *Defects*, *Work orders* and *Programme*

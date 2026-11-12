@@ -22,14 +22,17 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ims.domain.assets.asset import Asset
+from ims.domain.assets.calibration import CalibrationRecord
 from ims.domain.assets.catalogue import ItemType
 from ims.domain.assets.configuration import ConfigEvent
 from ims.domain.assets.documents import AssetDocument
 from ims.domain.assets.firmware import FirmwareRecord
 from ims.domain.assets.status import StatusEvent
 from ims.domain.audit import AuditEntry
+from ims.domain.batteries import BatteryCheck, BatteryPolicy
 from ims.domain.common.ids import (
     AssetId,
+    BatteryPolicyId,
     CommandId,
     DefectId,
     DeploymentId,
@@ -272,6 +275,27 @@ class WorkOrderRepository(Protocol):
     def update(self, order: WorkOrder) -> None: ...
 
 
+class BatteryPolicyRepository(Protocol):
+    def get(self, policy_id: BatteryPolicyId) -> BatteryPolicy | None: ...
+    def list(self) -> list[BatteryPolicy]: ...
+    def add(self, policy: BatteryPolicy) -> None: ...
+    def update(self, policy: BatteryPolicy) -> None: ...
+
+
+class BatteryCheckRepository(Protocol):
+    """Battery inspections, per battery (append-only, sequenced)."""
+
+    def for_asset(self, asset_id: AssetId) -> list[BatteryCheck]: ...
+    def append(self, check: BatteryCheck) -> None: ...
+
+
+class CalibrationRepository(Protocol):
+    """GNSS calibration and verification records, per item (append-only, sequenced)."""
+
+    def for_asset(self, asset_id: AssetId) -> list[CalibrationRecord]: ...
+    def append(self, record: CalibrationRecord) -> None: ...
+
+
 class AuditRepository(Protocol):
     def append(self, entry: AuditEntry) -> None: ...
     def for_entity(self, entity: str, entity_id: str) -> list[AuditEntry]: ...
@@ -320,5 +344,8 @@ class Storage:
     completions: CompletionRepository
     defects: DefectRepository
     work_orders: WorkOrderRepository
+    battery_policies: BatteryPolicyRepository
+    battery_checks: BatteryCheckRepository
+    calibrations: CalibrationRepository
     audit: AuditRepository
     commands: CommandLog

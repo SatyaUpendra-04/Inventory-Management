@@ -121,6 +121,9 @@ def test_screenshots_of_key_pages(ui: UiContext, mode: str, high_contrast: bool)
         "stock",
         "projects",
         "deployments",
+        "reservations",
+        "maintenance",
+        "batteries",
     ):
         ui.shell.navigate(key)
         settle(ui, 600)

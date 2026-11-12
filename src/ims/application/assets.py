@@ -7,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from ims.application.airworthiness import grounding_reasons
 from ims.application.context import Actor, CommandContext
 from ims.application.ledgers import append_status
 from ims.application.runner import CommandRunner, Outcome, add_once, update_once
@@ -14,6 +15,7 @@ from ims.domain.assets.asset import Asset, check_asset_against_type
 from ims.domain.assets.catalogue import ItemType, Meter
 from ims.domain.assets.status import (
     AssetStatus,
+    Serviceability,
     StatusChange,
     StatusEvent,
     replay,
@@ -152,6 +154,16 @@ class AssetService:
 
         def execute() -> Outcome:
             self._require(asset_id)
+            current = replay(self._s.status_events.for_asset(asset_id))
+            improving = change.serviceability in {
+                Serviceability.SERVICEABLE,
+                Serviceability.LIMITED,
+            }
+            if improving and current.serviceability is Serviceability.UNSERVICEABLE:
+                # Return to service is refused while anything still grounds the item.
+                reasons = grounding_reasons(self._s, asset_id, self._clock.today())
+                if reasons:
+                    raise RuleViolation(["It cannot return to service yet:", *reasons])
             event = append_status(self._s, self._clock, ctx, actor, asset_id, change)
             return Outcome(
                 "asset_status", str(asset_id), event.before.model_dump(mode="json"),

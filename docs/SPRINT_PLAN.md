@@ -143,7 +143,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 **Done when:** no asset can be deployed with an overdue task or open grounding defect.
 **Result:** editable programme with intervals, tolerances and life limits; due status calculated from the usage ledger and maintenance records; automatic grounding on logs and by sweep; defects (report, assess, defer, rectify) and work orders through to administrator sign-off; check-out blocked by any grounding reason on the item or its fitted parts; Maintenance page and item-sheet section (ADR-0009). Migration 0006. 512 tests, 89% coverage; domain 99%; zero QML warnings.
 
-### Sprint 8 — Battery lifecycle & survey equipment
+### Sprint 8 — Battery lifecycle & survey equipment ✅ (done 2026-11-12)
 - Separate lifecycle for every battery: drone flight batteries, DGPS receiver batteries, controller batteries
 - Battery cycle ledger, health %, optional internal resistance / cell imbalance / swelling checks; compatible chargers per battery family
 - Storage-charge reminders for idle batteries; retirement at cycle or health limits
@@ -152,6 +152,7 @@ The local adapter **must behave like the stricter backend (SharePoint)** from Sp
 - Alert centre combining maintenance, battery, calibration, document and licence alerts
 
 **Done when:** every battery and survey instrument has a complete, accurate lifecycle record.
+**Result:** Batteries page and sheet with cycle ledger, checks (health, resistance, imbalance, swelling, damage, storage charge), editable limits, automatic grounding at limits and no reset path; GNSS calibration and verification records that file certificates and ground on failure; alert centre behind the toolbar bell; return to service refused while anything grounds an item (ADR-0010). Migration 0007. 532 tests, 89% coverage; domain 99%; zero QML warnings.
 
 ### Sprint 9 — Stats, reports & forecasting
 - Pilot stats: hours by month/fiscal year, sorties, drone models, certificate status
@@ -232,7 +233,7 @@ The plan is chosen by IT's answer before Sprint 10 starts.
 | 5 | 2 | Projects, deployments, field logs ✅ |
 | 6 | 2 | Reservations ✅ |
 | 7 | 2 | Airworthiness & maintenance ✅ |
-| 8 | 2 | Battery lifecycle & survey equipment |
+| 8 | 2 | Battery lifecycle & survey equipment ✅ |
 | 9 | 2 | Stats, reports, forecasting |
 | 10 | 2 (+2 buffer) | Backend integration & release |
 | **Total** | **~21–23 weeks** | |

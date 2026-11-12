@@ -12,7 +12,10 @@ from ims.adapters.files import MemoryFileStore
 from ims.adapters.local_auth import LocalAuthProvider, MemoryCredentialStore, fast_hasher
 from ims.adapters.memory import memory_storage
 from ims.application.accounts import AccountService
+from ims.application.alerts import AlertService
 from ims.application.assets import AssetService
+from ims.application.batteries import BatteryService
+from ims.application.calibration import CalibrationService
 from ims.application.catalogue import CatalogueService
 from ims.application.deployments import DeploymentService
 from ims.application.field_logs import FieldLogService
@@ -68,6 +71,9 @@ def services() -> Services:
         logs=FieldLogService(storage, runner, clock),
         reservations=ReservationService(storage, runner, clock),
         maintenance=MaintenanceService(storage, runner, clock),
+        batteries=BatteryService(storage, runner, clock),
+        calibration=CalibrationService(storage, runner, clock, files),
+        alerts=AlertService(storage, clock),
         clock=clock,
     )
 

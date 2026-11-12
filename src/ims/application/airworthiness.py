@@ -12,7 +12,10 @@ from datetime import date, timedelta
 from ims.application.context import Actor, CommandContext
 from ims.application.ledgers import append_status
 from ims.application.runner import add_once
+from ims.domain.assets.calibration import failed_reason
+from ims.domain.assets.catalogue import Category, Meter
 from ims.domain.assets.status import USABLE, Serviceability, StatusChange, replay
+from ims.domain.batteries import BatteryState, battery_state, policy_id
 from ims.domain.common.ids import AssetId, DefectId
 from ims.domain.maintenance.defects import Defect, DefectState, next_number
 from ims.domain.maintenance.programme import (
@@ -21,7 +24,7 @@ from ims.domain.maintenance.programme import (
     due_status,
     last_completions,
 )
-from ims.domain.usage.ledger import totals
+from ims.domain.usage.ledger import UsageSource, totals
 from ims.ports.clock import Clock
 from ims.ports.repository import Storage
 
@@ -45,6 +48,27 @@ def task_states(storage: Storage, asset_id: AssetId, today: date) -> list[TaskDu
     return sorted(states, key=lambda d: (-d.state.rank, d.task.name))
 
 
+def battery_state_of(storage: Storage, asset_id: AssetId, today: date) -> BatteryState | None:
+    """The lifecycle state of a battery (None for anything that is not a battery)."""
+    asset = storage.assets.get(asset_id)
+    item_type = storage.item_types.get(asset.item_type_id) if asset else None
+    if item_type is None or item_type.category is not Category.BATTERY:
+        return None
+    entries = storage.usage.for_asset(asset_id)
+    used = [
+        e.occurred_on
+        for e in entries
+        if e.source in {UsageSource.SORTIE, UsageSource.CHARGE} and e.amount > 0
+    ]
+    return battery_state(
+        cycles=int(totals(entries).get(Meter.CYCLES, 0)),
+        policy=storage.battery_policies.get(policy_id(item_type.id)),
+        checks=storage.battery_checks.for_asset(asset_id),
+        last_used=max(used, default=None),
+        today=today,
+    )
+
+
 def grounding_reasons(storage: Storage, asset_id: AssetId, today: date) -> list[str]:
     """Why this item must not fly or go out: overdue tasks, reached life limits, open
     grounding defects and deferrals that have run out."""
@@ -53,6 +77,12 @@ def grounding_reasons(storage: Storage, asset_id: AssetId, today: date) -> list[
         for d in task_states(storage, asset_id, today)
         if d.state is DueState.OVERDUE
     ]
+    battery = battery_state_of(storage, asset_id, today)
+    if battery is not None:
+        reasons.extend(f"Battery {reason}" for reason in battery.reasons)
+    calibration = failed_reason(storage.calibrations.for_asset(asset_id))
+    if calibration is not None:
+        reasons.append(f"Calibration: {calibration}")
     for defect in storage.defects.for_asset(asset_id):
         if defect.state is DefectState.GROUNDED:
             reasons.append(f"{defect.number} grounds it: {defect.description}")

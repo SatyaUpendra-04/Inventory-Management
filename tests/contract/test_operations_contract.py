@@ -307,3 +307,66 @@ class TestMaintenanceStorage:
         assert storage.work_orders.for_asset(drone.id) == [started] == storage.work_orders.list()
         with pytest.raises(ConflictError):
             storage.work_orders.update(started)
+
+
+class TestBatteryAndCalibrationStorage:
+    def test_round_trips_and_sequences(self, storage: Storage) -> None:
+        from decimal import Decimal as Dec
+
+        from ims.domain.assets.calibration import (
+            CalibrationKind,
+            CalibrationRecord,
+            CalibrationResult,
+        )
+        from ims.domain.batteries import BatteryCheck, ChargeState, default_policies
+        from ims.domain.common.ids import CommandId
+
+        battery = _asset(storage, "DRONE_BATTERY", "BAT-0001")
+        receiver = _asset(storage, "GNSS_RECEIVER", "GNS-0001")
+        policy = next(p for p in default_policies() if p.item_type_id == battery.item_type_id)
+        storage.battery_policies.add(policy)
+        with pytest.raises(ConflictError):  # one set of limits per kind of battery
+            storage.battery_policies.add(policy.model_copy(update={"id": uuid7()}))
+        tighter = policy.next_version(cycle_limit=150)
+        storage.battery_policies.update(tighter)
+        assert storage.battery_policies.get(policy.id) == tighter
+        assert storage.battery_policies.list() == [tighter]
+
+        check = BatteryCheck(
+            id=EntryId(uuid7()),
+            asset_id=battery.id,
+            sequence=1,
+            checked_on=DAY,
+            health_pct=91,
+            internal_resistance_mohm=Dec("4.5"),
+            cell_imbalance_mv=7,
+            charge_state=ChargeState.STORAGE,
+            recorded_at=START,
+            recorded_by=UserId(uuid7()),
+            command_id=CommandId(uuid7()),
+        )
+        storage.battery_checks.append(check)
+        with pytest.raises(ConflictError):
+            storage.battery_checks.append(check.model_copy(update={"id": EntryId(uuid7())}))
+        assert storage.battery_checks.for_asset(battery.id) == [check]
+
+        record = CalibrationRecord(
+            id=EntryId(uuid7()),
+            asset_id=receiver.id,
+            sequence=1,
+            kind=CalibrationKind.VERIFICATION,
+            done_on=DAY,
+            method="RTK on control point",
+            reference="GCP-07",
+            result=CalibrationResult.FAIL,
+            horizontal_mm=Dec("12.5"),
+            vertical_mm=Dec(70),
+            notes="Vertical out",
+            recorded_at=START,
+            recorded_by=UserId(uuid7()),
+            command_id=CommandId(uuid7()),
+        )
+        storage.calibrations.append(record)
+        with pytest.raises(AlreadyExists):
+            storage.calibrations.append(record)
+        assert storage.calibrations.for_asset(receiver.id) == [record]

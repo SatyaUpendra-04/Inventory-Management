@@ -15,15 +15,18 @@ from sqlalchemy.exc import IntegrityError
 from ims.adapters.local_auth import Credential
 from ims.adapters.sqlite import schema as s
 from ims.domain.assets.asset import Asset
+from ims.domain.assets.calibration import CalibrationRecord
 from ims.domain.assets.catalogue import ItemType, Meter
 from ims.domain.assets.configuration import ConfigEvent
 from ims.domain.assets.documents import AssetDocument
 from ims.domain.assets.firmware import FirmwareRecord
 from ims.domain.assets.status import AssetStatus, StatusEvent
 from ims.domain.audit import AuditEntry
+from ims.domain.batteries import BatteryCheck, BatteryPolicy
 from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
 from ims.domain.common.ids import (
     AssetId,
+    BatteryPolicyId,
     CommandId,
     DefectId,
     DeploymentId,
@@ -1114,6 +1117,55 @@ class SqliteWorkOrders(_Base):
         self._update_versioned(_record_row(order, _WORK_ORDER_JSON))
 
 
+# ------------------------------------------------------------------ batteries & calibration
+
+
+class SqliteBatteryPolicies(_Base):
+    table, label = s.battery_policies, "battery limits"
+    _read = staticmethod(_record_of(BatteryPolicy, frozenset()))
+
+    def get(self, policy_id: BatteryPolicyId) -> BatteryPolicy | None:
+        return self._one(s.battery_policies.c.id == str(policy_id), self._read)
+
+    def list(self) -> list[BatteryPolicy]:
+        t = s.battery_policies
+        return self._many(select(t).order_by(t.c.item_type_id), self._read)
+
+    def add(self, policy: BatteryPolicy) -> None:
+        self._insert(_record_row(policy, frozenset()))
+
+    def update(self, policy: BatteryPolicy) -> None:
+        self._update_versioned(_record_row(policy, frozenset()))
+
+
+class SqliteBatteryChecks(_Base):
+    table, label = s.battery_checks, "battery check"
+    _read = staticmethod(_record_of(BatteryCheck, frozenset()))
+
+    def for_asset(self, asset_id: AssetId) -> list[BatteryCheck]:
+        t = s.battery_checks
+        return self._many(
+            select(t).where(t.c.asset_id == str(asset_id)).order_by(t.c.sequence), self._read
+        )
+
+    def append(self, check: BatteryCheck) -> None:
+        self._append_sequenced(_record_row(check, frozenset()), "asset_id")
+
+
+class SqliteCalibrations(_Base):
+    table, label = s.calibration_records, "calibration record"
+    _read = staticmethod(_record_of(CalibrationRecord, frozenset()))
+
+    def for_asset(self, asset_id: AssetId) -> list[CalibrationRecord]:
+        t = s.calibration_records
+        return self._many(
+            select(t).where(t.c.asset_id == str(asset_id)).order_by(t.c.sequence), self._read
+        )
+
+    def append(self, record: CalibrationRecord) -> None:
+        self._append_sequenced(_record_row(record, frozenset()), "asset_id")
+
+
 # ------------------------------------------------------------------ audit & commands
 
 
@@ -1221,6 +1273,9 @@ def sqlite_storage(engine: Engine) -> Storage:
         completions=SqliteCompletions(engine),
         defects=SqliteDefects(engine),
         work_orders=SqliteWorkOrders(engine),
+        battery_policies=SqliteBatteryPolicies(engine),
+        battery_checks=SqliteBatteryChecks(engine),
+        calibrations=SqliteCalibrations(engine),
         audit=SqliteAudit(engine),
         commands=SqliteCommandLog(engine),
     )

@@ -17,6 +17,8 @@ from ims.ui.models.sample_equipment import SampleEquipmentModel, SortableModel
 from ims.ui.tasks import TaskQueue
 from ims.ui.theme.icons import IconProvider
 from ims.ui.theme.manager import ThemeManager
+from ims.ui.viewmodels.alerts import AlertsViewModel
+from ims.ui.viewmodels.batteries import BatteriesViewModel
 from ims.ui.viewmodels.deployments import DeploymentsViewModel
 from ims.ui.viewmodels.equipment import EquipmentViewModel
 from ims.ui.viewmodels.kits import KitsViewModel
@@ -51,6 +53,8 @@ class UiContext:
     deployments: DeploymentsViewModel
     reservations: ReservationsViewModel
     maintenance: MaintenanceViewModel
+    batteries: BatteriesViewModel
+    alerts: AlertsViewModel
     sample_table: SortableModel
 
 
@@ -88,15 +92,25 @@ def create_engine(
     deployments = DeploymentsViewModel(session, services, tasks, engine)
     reservations = ReservationsViewModel(session, services, tasks, engine)
     maintenance = MaintenanceViewModel(session, services, tasks, engine)
+    batteries = BatteriesViewModel(session, services, tasks, engine)
+    alerts = AlertsViewModel(session, services, tasks, engine)
     sample_table = SortableModel(SampleEquipmentModel(engine), engine)
 
     session.signedIn.connect(lambda: shell.set_permissions(session.permission_codes()))
     session.signedOut.connect(lambda: shell.set_permissions(()))
     people.saved.connect(lambda message: toasts.show("success", message, ""))
-    for model in (sites, equipment, kits, stock, projects, deployments, reservations, maintenance):
+    for model in (
+        sites, equipment, kits, stock, projects, deployments, reservations, maintenance,
+        batteries,
+    ):  # fmt: skip
         model.saved.connect(lambda message: toasts.show("success", message, ""))
     # Maintenance done from the asset sheet re-reads the open asset.
     maintenance.saved.connect(lambda _message: equipment.reloadAsset())
+    batteries.saved.connect(lambda _message: maintenance.refresh())
+    # Anything saved anywhere may raise or clear an alert.
+    for changed in (people, sites, equipment, kits, stock, projects, deployments, reservations,
+                    maintenance, batteries):  # fmt: skip
+        changed.saved.connect(lambda _message: alerts.refreshSoon())
     # Checking out, returning and logging change equipment, stock and project views.
     for source in (projects, deployments, reservations, maintenance):
         for target in (projects, deployments, reservations, maintenance, equipment, stock):
@@ -119,6 +133,8 @@ def create_engine(
         "Deployments": deployments,
         "Reservations": reservations,
         "Maintenance": maintenance,
+        "Batteries": batteries,
+        "Alerts": alerts,
         "SampleTable": sample_table,
         "AppVersion": version,
         "AppEnvironment": environment,
@@ -143,6 +159,8 @@ def create_engine(
         deployments,
         reservations,
         maintenance,
+        batteries,
+        alerts,
         sample_table,
     )
 

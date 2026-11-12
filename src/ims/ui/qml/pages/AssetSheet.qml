@@ -11,6 +11,8 @@ Sheet {
     property string pendingAction: ""
     property string documentFile: ""
     property bool reporting: false
+    property string calibrating: ""
+    property string calibrationFile: ""
     property string recordTask: ""
 
     signal editRequested(var detail)
@@ -23,12 +25,23 @@ Sheet {
         Equipment.clearError()
         Maintenance.clearError()
         reporting = false
+        calibrating = ""
         recordTask = ""
         pendingAction = ""
         Equipment.openAsset(assetId)
         open()
     }
     onClosed: Equipment.closeAsset()
+
+    function startCalibration(kind) {
+        calibrating = kind
+        for (var f of [calMethod, calReference, calH, calV, calNotes]) f.text = ""
+        calResult.currentIndex = 0
+        calDay.hasDate = true; calDay.selectedDate = new Date()
+        var next = new Date(); next.setFullYear(next.getFullYear() + 1)
+        calValid.hasDate = true; calValid.selectedDate = next
+        calibrationFile = ""
+    }
 
     function iso(picker) { return picker.hasDate ? Qt.formatDate(picker.selectedDate, "yyyy-MM-dd") : "" }
 
@@ -114,6 +127,98 @@ Sheet {
                 AppButton { y: 0; compact: true; variant: "danger"; text: qsTr("Confirm")
                             onClicked: { Equipment.changeStatus(sheet.d.assetId, sheet.pendingAction, reason.text); sheet.pendingAction = "" } }
                 AppButton { compact: true; text: qsTr("Cancel"); onClicked: sheet.pendingAction = "" }
+            }
+        }
+
+        // ------------------------------------------------------------ calibration
+        Column {
+            id: calibrationSection
+            visible: !!sheet.d.tracksCalibration
+            width: parent.width
+            spacing: Theme.space.xs
+            Rectangle { width: parent.width; height: 1; color: Theme.colors.divider }
+            Item {
+                width: parent.width
+                height: calibrationHeading.height
+                Heading { id: calibrationHeading; text: qsTr("Calibration and verification") }
+                Row {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    spacing: Theme.space.xs
+                    AppButton { visible: Maintenance.canReport && sheet.calibrating === ""; compact: true; variant: "ghost"
+                                text: qsTr("Record verification…"); onClicked: sheet.startCalibration("verification") }
+                    AppButton { visible: Equipment.canManage && sheet.calibrating === ""; compact: true; iconName: "satellite"
+                                text: qsTr("Record calibration…"); onClicked: sheet.startCalibration("calibration") }
+                }
+            }
+            Txt { visible: (sheet.d.calibrations || []).length === 0 && sheet.calibrating === ""; muted: true
+                  text: qsTr("No calibrations or field verifications recorded yet.") }
+            Repeater {
+                model: sheet.d.calibrations || []
+                delegate: Row {
+                    required property var modelData
+                    spacing: Theme.space.md
+                    Txt { width: 96; height: 32; text: modelData.when; variant: "caption"; muted: true }
+                    Txt { width: 92; height: 32; text: modelData.kind; variant: "bodyStrong" }
+                    Item { width: 82; height: 32
+                           StatusPill { anchors.verticalCenter: parent.verticalCenter; kind: modelData.resultKind; text: modelData.result } }
+                    Txt { width: 250; height: 32; elide: Text.ElideRight; text: modelData.method + "  ·  " + modelData.reference }
+                    Txt { width: 140; height: 32; text: modelData.residual; variant: "caption"; font.features: { "tnum": 1 } }
+                    Txt { height: 32; variant: "caption"; muted: true
+                          text: modelData.validUntil ? qsTr("valid to %1").arg(modelData.validUntil) : modelData.notes }
+                }
+            }
+            Column {
+                visible: sheet.calibrating !== ""
+                width: parent.width
+                spacing: Theme.space.sm
+                Row {
+                    spacing: Theme.space.md
+                    AppDatePicker { id: calDay; width: 170; label: qsTr("Date") }
+                    AppTextField { id: calMethod; width: 230; label: qsTr("Method")
+                                   placeholder: sheet.calibrating === "calibration" ? qsTr("e.g. Lab calibration") : qsTr("e.g. RTK on a control point") }
+                    AppTextField { id: calReference; width: parent.parent.width - 170 - 230 - Theme.space.md * 2
+                                   label: sheet.calibrating === "calibration" ? qsTr("Lab or service centre") : qsTr("Control point") }
+                }
+                Row {
+                    spacing: Theme.space.md
+                    Column {
+                        spacing: 6
+                        Txt { text: qsTr("Result"); variant: "caption"; font.weight: Theme.type.medium }
+                        AppSelect { id: calResult; width: 170; textRole: "label"; valueRole: "value"
+                                    model: [{ value: "pass", label: qsTr("Pass") }, { value: "adjusted", label: qsTr("Adjusted, now in tolerance") },
+                                            { value: "fail", label: qsTr("Fail") }] }
+                    }
+                    AppTextField { id: calH; width: 130; label: qsTr("Horizontal (mm)") }
+                    AppTextField { id: calV; width: 130; label: qsTr("Vertical (mm)") }
+                    AppDatePicker { id: calValid; visible: sheet.calibrating === "calibration"; width: 180; label: qsTr("Certificate valid to") }
+                }
+                Row {
+                    spacing: Theme.space.md
+                    AppTextField { id: calNotes; width: 420; label: calResult.currentValue === "fail" ? qsTr("What failed (required)") : qsTr("Notes (optional)") }
+                    FileButton { visible: sheet.calibrating === "calibration"; anchors.bottom: parent.bottom
+                                 compact: true; iconName: "plus"
+                                 text: sheet.calibrationFile ? qsTr("Certificate attached") : qsTr("Attach certificate")
+                                 nameFilters: [qsTr("Certificate (*.pdf *.png *.jpg *.jpeg)")]
+                                 onChosen: function (url) { sheet.calibrationFile = url } }
+                }
+                Row {
+                    spacing: Theme.space.xs
+                    AppButton { text: qsTr("Cancel"); onClicked: sheet.calibrating = "" }
+                    AppButton {
+                        variant: calResult.currentValue === "fail" ? "danger" : "primary"
+                        text: qsTr("Save")
+                        enabled: !Tasks.busy
+                        onClicked: {
+                            Equipment.recordCalibration(sheet.d.assetId, {
+                                kind: sheet.calibrating, doneOn: sheet.iso(calDay), method: calMethod.text,
+                                reference: calReference.text, result: calResult.currentValue, horizontal: calH.text,
+                                vertical: calV.text, validUntil: sheet.iso(calValid), notes: calNotes.text
+                            }, sheet.calibrationFile)
+                            sheet.calibrating = ""
+                        }
+                    }
+                }
             }
         }
 

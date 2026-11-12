@@ -33,6 +33,7 @@ class UsageSource(StrEnum):
     OPENING_BALANCE = "opening_balance"  # meter reading when the asset was registered
     ADJUSTMENT = "adjustment"  # admin correction with a reason
     REVERSAL = "reversal"  # cancels one earlier entry
+    CHARGE = "charge"  # charge cycles logged for a battery outside flights
 
 
 class UsageEntry(ValueModel):
@@ -61,7 +62,12 @@ class UsageEntry(ValueModel):
             problems.append(
                 "a reversal must reference the entry it cancels, and only a reversal can"
             )
-        if self.source in {UsageSource.SORTIE, UsageSource.RETURN, UsageSource.OPENING_BALANCE}:
+        if self.source in {
+            UsageSource.SORTIE,
+            UsageSource.RETURN,
+            UsageSource.OPENING_BALANCE,
+            UsageSource.CHARGE,
+        }:
             if self.amount <= 0:
                 problems.append("recorded usage must be greater than zero")
             if (

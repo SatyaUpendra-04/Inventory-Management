@@ -11,15 +11,18 @@ from collections.abc import Callable, Hashable
 from typing import Protocol
 
 from ims.domain.assets.asset import Asset
+from ims.domain.assets.calibration import CalibrationRecord
 from ims.domain.assets.catalogue import ItemType
 from ims.domain.assets.configuration import ConfigEvent
 from ims.domain.assets.documents import AssetDocument
 from ims.domain.assets.firmware import FirmwareRecord
 from ims.domain.assets.status import StatusEvent
 from ims.domain.audit import AuditEntry
+from ims.domain.batteries import BatteryCheck, BatteryPolicy
 from ims.domain.common.errors import AlreadyExists, ConflictError, NotFound
 from ims.domain.common.ids import (
     AssetId,
+    BatteryPolicyId,
     CommandId,
     DefectId,
     DeploymentId,
@@ -606,6 +609,47 @@ class MemoryWorkOrders:
         self._t.update(order)
 
 
+class MemoryBatteryPolicies:
+    def __init__(self) -> None:
+        self._t: _Table[BatteryPolicy] = _Table(
+            "battery limits", {"item_type": lambda p: p.item_type_id}
+        )
+
+    def get(self, policy_id: BatteryPolicyId) -> BatteryPolicy | None:
+        return self._t.rows.get(policy_id)
+
+    def list(self) -> list[BatteryPolicy]:
+        return sorted(self._t.rows.values(), key=lambda p: str(p.item_type_id))
+
+    def add(self, policy: BatteryPolicy) -> None:
+        self._t.add(policy)
+
+    def update(self, policy: BatteryPolicy) -> None:
+        self._t.update(policy)
+
+
+class MemoryBatteryChecks:
+    def __init__(self) -> None:
+        self._s: _Stream[BatteryCheck] = _Stream(lambda c: c.asset_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[BatteryCheck]:
+        return self._s.get(asset_id)
+
+    def append(self, check: BatteryCheck) -> None:
+        self._s.append(check, check.id, check.sequence)
+
+
+class MemoryCalibrations:
+    def __init__(self) -> None:
+        self._s: _Stream[CalibrationRecord] = _Stream(lambda r: r.asset_id)
+
+    def for_asset(self, asset_id: AssetId) -> list[CalibrationRecord]:
+        return self._s.get(asset_id)
+
+    def append(self, record: CalibrationRecord) -> None:
+        self._s.append(record, record.id, record.sequence)
+
+
 class MemoryCommandLog:
     def __init__(self) -> None:
         self._records: dict[CommandId, CommandRecord] = {}
@@ -644,6 +688,9 @@ def memory_storage() -> Storage:
         completions=MemoryCompletions(),
         defects=MemoryDefects(),
         work_orders=MemoryWorkOrders(),
+        battery_policies=MemoryBatteryPolicies(),
+        battery_checks=MemoryBatteryChecks(),
+        calibrations=MemoryCalibrations(),
         audit=MemoryAudit(),
         commands=MemoryCommandLog(),
     )

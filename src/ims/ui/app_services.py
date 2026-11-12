@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ims.application.accounts import AccountService
+from ims.application.alerts import AlertService
 from ims.application.assets import AssetService
+from ims.application.batteries import BatteryService
+from ims.application.calibration import CalibrationService
 from ims.application.catalogue import CatalogueService
 from ims.application.deployments import DeploymentService
 from ims.application.field_logs import FieldLogService
@@ -35,4 +38,7 @@ class Services:
     logs: FieldLogService
     reservations: ReservationService
     maintenance: MaintenanceService
+    batteries: BatteryService
+    calibration: CalibrationService
+    alerts: AlertService
     clock: Clock

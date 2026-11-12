@@ -8,7 +8,10 @@ from ims.adapters.files import MemoryFileStore
 from ims.adapters.local_auth import LocalAuthProvider, MemoryCredentialStore, fast_hasher
 from ims.adapters.memory import memory_storage
 from ims.application.accounts import AccountService
+from ims.application.alerts import AlertService
 from ims.application.assets import AssetService
+from ims.application.batteries import BatteryService
+from ims.application.calibration import CalibrationService
 from ims.application.catalogue import CatalogueService
 from ims.application.context import Actor, CommandContext
 from ims.application.deployments import DeploymentService
@@ -47,6 +50,9 @@ class App:
     logs: FieldLogService
     reservations: ReservationService
     maintenance: MaintenanceService
+    batteries: BatteryService
+    calibration: CalibrationService
+    alerts: AlertService
     accounts: AccountService
     auth: LocalAuthProvider
     files: MemoryFileStore
@@ -88,6 +94,9 @@ def app() -> App:
         logs=FieldLogService(storage, runner, clock),
         reservations=ReservationService(storage, runner, clock),
         maintenance=MaintenanceService(storage, runner, clock),
+        batteries=BatteryService(storage, runner, clock),
+        calibration=CalibrationService(storage, runner, clock, files),
+        alerts=AlertService(storage, clock),
         accounts=AccountService(storage, auth, files, users, runner, clock),
         auth=auth,
         files=files,
